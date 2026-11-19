@@ -39,7 +39,8 @@ $('#mc').onclick = () => $('#mod').style.display = 'none';
 try {
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && !IS_GAS_HOST) {
     const had = !!navigator.serviceWorker.controller;
-    navigator.serviceWorker.register('sw.js').then(reg => {
+    // updateViaCache: 'none' memaksa browser selalu mengecek sw.js terbaru ke server
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
       const ub = () => {
         $('#ub').style.display = 'flex';
         $('#ubb').onclick = () => reg.waiting ? reg.waiting.postMessage('SKIP') : location.reload();
@@ -51,7 +52,13 @@ try {
           if (w.state === 'installed' && navigator.serviceWorker.controller) ub();
         });
       });
-      setInterval(() => reg.update().catch(() => {}), 3600000);
+
+      // Cek pembaruan setiap 15 menit & setiap kali user membuka kembali aplikasi di HP
+      setInterval(() => reg.update().catch(() => {}), 900000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (had && !window._rl) { window._rl = 1; location.reload(); }
       });
