@@ -141,6 +141,15 @@ function dash() {
       <div class="card"><h3>Komposisi status</h3><svg viewBox="0 0 100 100" width="100%" style="max-height:190px"><g transform="rotate(-90 50 50)" id="dn"></g><text x="50" y="54" text-anchor="middle" font-size="14" font-weight="800" fill="currentColor" id="dt">0%</text></svg><div class="leg">${Object.entries(ST).map(([k, v]) => `<span><i style="background:${v[1]}"></i>${v[0]} ${all[k]}</span>`).join('')}</div></div>
     </div>`;
 
+
+  if ($('#k4card') && $('#alertBox')) {
+    $('#k4card').onclick = () => {
+      const box = $('#alertBox');
+      box.style.display = box.style.display === 'none' ? 'block' : 'none';
+      if (box.style.display === 'block') box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+  }
+
   $('#dpSel').onchange = e => {
     window._dashPeriod = e.target.value;
     render();

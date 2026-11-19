@@ -7,19 +7,109 @@
 function lap() {
   const cls = vis(), ds = dates();
   const rows = cls.map(c => ({ c, ...stat([c], ds), n: S.students.filter(s => s.c === c && isActiveStu(s)).length }));
+  
+  // Analisis siswa individu untuk fitur "Perlu Perhatian"
+  const stuStats = [];
+  const stuMap = {};
+  DS().students.filter(s => cls.includes(s.c) && isActiveStu(s)).forEach(s => {
+    stuMap[s.id] = { ...s, H: 0, S: 0, I: 0, A: 0, T: 0 };
+  });
+
+  ds.forEach(d => {
+    cls.forEach(c => {
+      const a = DS().att[d + '_' + c];
+      if (a) {
+        for (const k in a.recs) {
+          const st = stuMap[k];
+          if (st && stuOnDate(st, d)) {
+            st[a.recs[k]]++;
+            st.T++;
+          }
+        }
+      }
+    });
+  });
+
+  Object.values(stuMap).forEach(st => {
+    if (st.T > 0) {
+      st.p = (st.H / st.T) * 100;
+      if (st.p < 85 || st.A >= 3) {
+        stuStats.push(st);
+      }
+    }
+  });
+
+  stuStats.sort((a, b) => a.p - b.p || b.A - a.A);
+
   $('#pg').innerHTML = `
-    <div class="card">
-      <div class="ctl"><h3 style="margin:0">Rekap ${ds.length} hari terakhir</h3><span style="flex:1"></span><button class="btn" id="xl">📊 Unduh Excel (.xlsx)</button><button class="btn o" id="cv">⬇ CSV</button></div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="ctl">
+        <h3 style="margin:0">Rekap Global Kelas (${ds.length} hari terakhir)</h3>
+        <span style="flex:1"></span>
+        <button class="btn" id="xl">📊 Unduh Excel</button>
+        <button class="btn o" id="cv">⬇ CSV</button>
+      </div>
       <div class="sc">
         <table>
-          <tr><th>Kelas</th><th>Siswa</th><th>Hadir</th><th>Sakit</th><th>Izin</th><th>Alpa</th><th>% Hadir</th></tr>
-          ${rows.map(r => `<tr><td><b>${r.c}</b></td><td>${r.n}</td><td>${r.H}</td><td>${r.S}</td><td>${r.I}</td><td>${r.A}</td><td class="${r.p < 90 ? 'bad' : ''}">${r.p.toFixed(1)}%</td></tr>`).join('')}
+          <tr><th>Kelas</th><th>Siswa Aktif</th><th>Hadir</th><th>Sakit</th><th>Izin</th><th>Alpa</th><th>% Hadir</th></tr>
+          ${rows.map(r => `<tr>
+            <td><b>${r.c}</b></td>
+            <td>${r.n}</td>
+            <td>${r.H}</td>
+            <td>${r.S}</td>
+            <td>${r.I}</td>
+            <td>${r.A}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="width:36px;text-align:right" class="${r.p < 90 ? 'bad' : ''}"><b>${r.p.toFixed(1)}%</b></span>
+                <div style="flex:1;height:6px;background:var(--ln);border-radius:3px;overflow:hidden">
+                  <div style="width:${r.p}%;height:100%;background:${r.p >= 90 ? 'var(--g)' : (r.p >= 80 ? 'var(--y)' : 'var(--r)')}"></div>
+                </div>
+              </div>
+            </td>
+          </tr>`).join('') || `<tr><td colspan="7" class="mu">Belum ada data di periode ini.</td></tr>`}
         </table>
       </div>
+    </div>
+    
+    <div class="card sc" style="border-left:4px solid var(--r)">
+      <div class="ctl">
+        <h3 style="margin:0;color:var(--r)">⚠️ Siswa Perlu Perhatian Khusus</h3>
+      </div>
+      <p style="font-size:13px;color:var(--mu);margin-top:0">Daftar siswa dengan tingkat kehadiran di bawah 85% atau memiliki jumlah Alpa 3 kali atau lebih selama periode ini. Diperlukan tindakan cepat seperti menghubungi orang tua/wali siswa.</p>
+      <table>
+        <tr>
+          <th>No</th>
+          <th>Nama Siswa</th>
+          <th>Kelas</th>
+          <th>% Hadir</th>
+          <th>Rincian (H / S / I / A)</th>
+          <th>Saran Tindakan</th>
+        </tr>
+        ${stuStats.map((st, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td><b>${esc(st.n)}</b></td>
+            <td>${esc(st.c)}</td>
+            <td class="bad"><b>${st.p.toFixed(1)}%</b></td>
+            <td style="font-size:12px">
+              H:${st.H} | S:${st.S} | I:${st.I} | <b style="color:var(--r)">A:${st.A}</b>
+            </td>
+            <td>
+              ${st.A >= 3 
+                ? '<span class="pill" style="color:var(--w);background:var(--r);border:none;font-weight:bold">📞 Hubungi Ortu / SP</span>' 
+                : '<span class="pill" style="color:var(--w);background:var(--y);border:none;font-weight:bold">👀 Pantau Ketat</span>'}
+            </td>
+          </tr>
+        `).join('') || `<tr><td colspan="6" class="mu" style="text-align:center;padding:20px">🎉 Luar biasa! Semua siswa disiplin dengan kehadiran di atas 85% dan tanpa rekam jejak Alpa berlebih.</td></tr>`}
+      </table>
     </div>`;
+
   $('#xl').onclick = exportXl;
   $('#cv').onclick = async () => {
-    const csv = 'Kelas,Siswa,Hadir,Sakit,Izin,Alpa,Persen\n' + rows.map(r => [r.c, r.n, r.H, r.S, r.I, r.A, r.p.toFixed(1)].join(',')).join('\n');
+    const csv = 'Kelas,Siswa,Hadir,Sakit,Izin,Alpa,Persen
+' + rows.map(r => [r.c, r.n, r.H, r.S, r.I, r.A, r.p.toFixed(1)].join(',')).join('
+');
     const ok = await dl('rekap-absensi-' + TODAY + '.csv', csv, 'text/csv;charset=utf-8');
     if (!ok) toast('Unduhan tidak tersedia di tampilan ini');
   };
