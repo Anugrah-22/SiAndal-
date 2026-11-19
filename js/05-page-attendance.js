@@ -1,7 +1,7 @@
 /**
  * js/05-page-attendance.js
  * Halaman Input Absensi Harian (H/S/I/A) per kelas dengan proteksi anti-tabrakan antar guru
- * (info guru penginput & mode kunci), filter siswa pindahan, serta pembatalan absensi.
+ * (info guru penginput & mode kunci), batal edit aman, filter siswa pindahan, serta hapus absensi.
  */
 
 function absen() {
@@ -57,8 +57,9 @@ function absen() {
           ${isLocked ? `
             <button class="btn o" id="unlockBtn" style="border-color:var(--pr);color:var(--pr)">✏️ Ubah / Perbarui Absensi</button>
           ` : `
-            ${hasDraft ? `<button class="btn o" id="rst" title="Kosongkan pilihan sementara di layar">Reset Pilihan</button>` : ''}
-            ${ex ? `<button class="btn o" id="delAtt" style="color:var(--r);border-color:var(--r)" title="Hapus data absensi yang sudah tersimpan pada tanggal dan kelas ini">🗑 Batalkan Absensi</button>` : ''}
+            ${ex ? `<button class="btn o" id="cancelEditBtn" title="Batalkan perubahan dan kembalikan ke data tersimpan sebelumnya">↩ Batal Edit</button>` : ''}
+            ${!ex && hasDraft ? `<button class="btn o" id="rst" title="Kosongkan pilihan sementara di layar">Reset Pilihan</button>` : ''}
+            ${ex ? `<button class="btn o" id="delAtt" style="color:var(--r);border-color:var(--r)" title="Hapus seluruh rekaman absensi kelas ini pada tanggal ini">🗑 Hapus Data Absensi</button>` : ''}
             <button class="btn o" id="all">Semua Hadir</button>
             <button class="btn" id="sv">💾 Simpan</button>
           `}
@@ -67,7 +68,7 @@ function absen() {
         ${ex ? `
           <div style="background:color-mix(in srgb,var(--g) 12%,transparent);border:1px solid color-mix(in srgb,var(--g) 40%,transparent);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:8px">
             <span>✅ Absensi kelas <b>${esc(c)}</b> tanggal <b>${d}</b> sudah diisi oleh <b>${esc(actorName)}</b>${savedTime ? ` pada pukul <b>${savedTime}</b>` : ''}.</span>
-            <span style="color:var(--mu);font-size:12px">${isLocked ? 'Guru jam pelajaran berikutnya tidak perlu mengabsen ulang kecuali ada perubahan status siswa (klik tombol Ubah di atas).' : 'Mode edit aktif — silakan sesuaikan jika ada siswa yang sakit/izin menyusul.'}</span>
+            <span style="color:var(--mu);font-size:12px">${isLocked ? 'Guru jam pelajaran berikutnya tidak perlu mengabsen ulang kecuali ada perubahan status siswa (klik tombol Ubah di atas).' : 'Mode edit aktif — ubah status yang perlu lalu klik Simpan, atau klik Batal Edit untuk kembali tanpa mengubah data.'}</span>
           </div>
         ` : ''}
 
@@ -98,7 +99,16 @@ function absen() {
     if ($('#unlockBtn')) {
       $('#unlockBtn').onclick = () => {
         unlockEdit = true;
-        toast('Mode edit dibuka. Silakan ubah status siswa lalu klik Simpan.');
+        toast('Mode edit dibuka. Ubah status siswa lalu klik Simpan, atau klik Batal Edit.');
+        draw();
+      };
+    }
+
+    if ($('#cancelEditBtn')) {
+      $('#cancelEditBtn').onclick = () => {
+        draft = 0;
+        unlockEdit = false;
+        toast('Edit dibatalkan, data dikembalikan ke versi tersimpan');
         draw();
       };
     }
@@ -114,7 +124,7 @@ function absen() {
       draw();
     };
     if ($('#delAtt')) $('#delAtt').onclick = async () => {
-      if (!await ask('Batalkan dan hapus data absensi kelas ' + c + ' pada tanggal ' + d + '?')) return;
+      if (!await ask('PERHATIAN: Ini akan MENGHAPUS PERMANEN seluruh data absensi kelas ' + c + ' pada tanggal ' + d + ' dari database. Lanjutkan?')) return;
       delete S.att[k];
       S.outbox = S.outbox.filter(x => x !== k);
       S.datt = S.datt || [];
@@ -122,7 +132,7 @@ function absen() {
       draft = {};
       unlockEdit = false;
       save();
-      toast(navigator.onLine && REM ? '🗑 Absensi dibatalkan & menyinkronkan…' : '🗑 Absensi dibatalkan (lokal)');
+      toast(navigator.onLine && REM ? '🗑 Data absensi dihapus & menyinkronkan…' : '🗑 Data absensi dihapus (lokal)');
       push();
       draw();
     };

@@ -15,8 +15,10 @@ const ST = {
   A: ['Alpa', 'var(--r)']
 };
 
-const VER = '1.7.0-gas';
+const VER = '1.7.2-gas';
 const CHANGELOG = [
+  ['1.7.2-gas', '19 Nov 2026', 'Tambah tombol Batal Edit pada halaman Input Absensi untuk mengembalikan pilihan ke data tersimpan tanpa menghapus absensi, serta perjelas label tombol Hapus Data Absensi.'],
+  ['1.7.1-gas', '19 Nov 2026', 'Perbaikan sinkronisasi real-time antar perangkat: otomatis memperbarui halaman Input Absensi, pembatalan absensi, dan daftar kelas guru tanpa perlu login ulang.'],
   ['1.7.0-gas', '19 Nov 2026', 'Proteksi anti-tabrakan absensi antar guru (info guru penginput, jam absen, dan kunci edit aman), perbaikan grafik tren harian agar tidak terpotong saat libur, serta pembaruan PWA otomatis dengan notifikasi versi.'],
   ['1.6.0-gas', '19 Nov 2026', 'Peningkatan antarmuka Dashboard dan Laporan: peringatan siswa perlu perhatian (<85% atau Alpa >= 3), kotak detail interaktif, dan progress bar persentase.'],
   ['1.5.0-gas', '19 Nov 2026', 'Dukungan tanggal masuk & mutasi keluar siswa pindahan: siswa baru tidak muncul pada absensi bulan/tanggal sebelum masuk, dan siswa keluar otomatis nonaktif mulai tanggal keluar.'],

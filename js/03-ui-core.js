@@ -123,7 +123,11 @@ function start() {
   $('#out').textContent = user.r === 'tamu' ? '🔐 Masuk Staf' : '⏻ Keluar';
   $('#tl').style.display = user.r === 'tamu' ? '' : 'none';
   $('#nav').innerHTML = NAV[user.r].map(n => `<button class="nav" data-p="${n[0]}">${n[1]} ${n[2]}</button>`).join('');
-  document.querySelectorAll('#nav .nav').forEach(b => b.onclick = () => { page = b.dataset.p; render(); });
+  document.querySelectorAll('#nav .nav').forEach(b => b.onclick = () => {
+    page = b.dataset.p;
+    render();
+    if (REM && navigator.onLine) push();
+  });
   page = 'dash';
   render();
   netUI();

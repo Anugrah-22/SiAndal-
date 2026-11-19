@@ -53,7 +53,10 @@ try {
       });
       setInterval(() => reg.update().catch(() => {}), 900000);
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+        if (document.visibilityState === 'visible') {
+          reg.update().catch(() => {});
+          if (REM && navigator.onLine) push();
+        }
       });
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (had && !window._rl) { window._rl = 1; location.reload(); }

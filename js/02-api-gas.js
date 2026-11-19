@@ -209,6 +209,34 @@ async function syncStaff() {
     S.datt = (S.datt || []).filter(k => !sentDatt.has(k));
   }
 
+  // Perbarui hak akses kelas terbaru untuk guru yang sedang login tanpa perlu relogin
+  if (user && user.r === 'guru' && Array.isArray(res.myClasses)) {
+    if (JSON.stringify(user.k || []) !== JSON.stringify(res.myClasses)) {
+      user.k = res.myClasses;
+      const uRec = (S.users || []).find(x => x.u === user.u);
+      if (uRec) uRec.k = res.myClasses;
+      ch = 1;
+    }
+  }
+
+  // Perbarui daftar nama staf/guru agar tampilan "diisi oleh [Nama Guru]" selalu akurat
+  if (Array.isArray(res.users) && res.users.length) {
+    const oldMap = {};
+    (S.users || []).forEach(x => { oldMap[x.u] = x; });
+    const pendingU = new Set(S.uout || []);
+    res.users.forEach(ru => {
+      if (pendingU.has(ru.u)) return;
+      const exU = oldMap[ru.u];
+      if (exU) {
+        exU.n = ru.n;
+        exU.r = ru.r;
+        exU.on = ru.on;
+      } else {
+        S.users.push({ u: ru.u, n: ru.n, r: ru.r, k: [], s: '', h: 'x', on: ru.on, ts: 1 });
+      }
+    });
+  }
+
   // Terapkan data master dari server HANYA jika tidak ada perubahan lokal yang belum tersinkron
   if (!S.mq) {
     if (res.classes && JSON.stringify(res.classes) !== JSON.stringify(S.classes)) {
@@ -221,22 +249,33 @@ async function syncStaff() {
     }
   }
 
-  let cur = S.cur || '';
+  // Bersihkan absensi lokal yang sudah dihapus/dibatalkan di perangkat lain
   const pendingDelAtt = new Set(S.datt || []);
+  if (Array.isArray(res.activeAttKeys)) {
+    const activeSet = new Set(res.activeAttKeys);
+    Object.keys(S.att || {}).forEach(k => {
+      if (!S.outbox.includes(k) && !pendingDelAtt.has(k) && !activeSet.has(k)) {
+        delete S.att[k];
+        ch = 1;
+      }
+    });
+  }
+
+  let cur = S.cur || '';
   (res.attendance || []).forEach(r => {
     const k = r.att_date + '_' + r.class;
     if (S.outbox.includes(k) || pendingDelAtt.has(k)) return;
     const x = S.att[k] || (S.att[k] = { recs: {}, ts: 1, by: '' });
     if (x.recs[r.student_id] !== r.status) { x.recs[r.student_id] = r.status; ch = 1; }
     const rTs = Date.parse(r.updated_at) || 1;
-    if (rTs >= x.ts && r.updated_by) x.by = r.updated_by;
+    if (rTs >= x.ts && r.updated_by && x.by !== r.updated_by) { x.by = r.updated_by; ch = 1; }
     x.ts = Math.max(x.ts, rTs);
     if (r.updated_at > cur) cur = r.updated_at;
   });
   S.cur = cur;
   save();
 
-  if (ch && ['dash', 'lap', 'siswa', 'kelas'].includes(page)) render();
+  if (ch && ['dash', 'absen', 'lap', 'siswa', 'kelas'].includes(page)) render();
 }
 
 async function pushR() {
@@ -271,7 +310,8 @@ async function initDb() {
   if (REM) {
     if (!window._ri) {
       window._ri = 1;
-      setInterval(() => push(), 45000);
+      setInterval(() => push(), 20000);
+      addEventListener('focus', () => push());
       addEventListener('online', () => push());
     }
     return push();
