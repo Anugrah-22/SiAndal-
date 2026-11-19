@@ -1,0 +1,206 @@
+/**
+ * js/04-page-dashboard.js
+ * Halaman Dashboard: KPI ringkas, animasi Balapan Kehadiran Kelas,
+ * grafik garis tren harian, dan grafik donat komposisi status.
+ */
+
+function dash() {
+  const cls = vis(), ds = dates(), all = stat(cls, ds), last = stat(cls, [ds[ds.length - 1]]);
+  const ns = DS().students.filter(s => cls.includes(s.c));
+  const low = DS() === G && G
+    ? G.low
+    : ns.filter(s => {
+        let h = 0, t = 0;
+        ds.forEach(d => {
+          const a = DS().att[d + '_' + s.c];
+          if (a && a.recs[s.id]) { t++; if (a.recs[s.id] === 'H') h++; }
+        });
+        return t && h / t < .85;
+      }).length;
+
+  $('#pg').innerHTML = `
+    <div class="kpis">
+      <div class="card kpi"><b id="k1">0</b><span>Total siswa</span></div>
+      <div class="card kpi"><b id="k2">0</b><span>Kehadiran hari terakhir (${ds[ds.length - 1]})</span></div>
+      <div class="card kpi"><b id="k3">0</b><span>Rata-rata ${ds.length} hari</span></div>
+      <div class="card kpi"><b id="k4" class="bad">0</b><span>Siswa perlu perhatian (&lt;85%)</span></div>
+    </div>
+    <div class="card">
+      <div class="ctl">
+        <h3 style="margin:0">🏁 Balapan Kehadiran Kelas</h3>
+        <span style="flex:1"></span>
+        <div class="seg pr" id="md">
+          <button data-m="p" class="on">% Kehadiran</button>
+          <button data-m="c">Jumlah Hadir</button>
+        </div>
+      </div>
+      <div class="lead"><span id="ld"></span><span style="flex:1"></span><b id="dl" style="color:var(--pr)"></b></div>
+      <div class="race" id="race"></div>
+      <div class="ctl" style="margin-top:12px">
+        <button class="btn" id="pp">⏸ Jeda</button>
+        <button class="btn o" id="pl">⟳ Ulang</button>
+        <div class="seg pr" id="spd">
+          <button data-s="1">1×</button>
+          <button data-s="2" class="on">2×</button>
+          <button data-s="4">4×</button>
+        </div>
+        <input type="range" id="sc" min="0" max="${ds.length - 1}" step="0.01" value="0">
+      </div>
+      <div class="cap">Persentase kehadiran = jumlah hadir ÷ seluruh catatan absensi sejak awal periode. Kelas dengan angka tertinggi berada di posisi teratas. Geser slider untuk melihat hari tertentu.</div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Tren kehadiran harian (%)</h3><svg id="ln" viewBox="0 0 600 200" width="100%"></svg></div>
+      <div class="card"><h3>Komposisi status</h3><svg viewBox="0 0 100 100" width="100%" style="max-height:190px"><g transform="rotate(-90 50 50)" id="dn"></g><text x="50" y="54" text-anchor="middle" font-size="14" font-weight="800" fill="currentColor" id="dt">0%</text></svg><div class="leg">${Object.entries(ST).map(([k, v]) => `<span><i style="background:${v[1]}"></i>${v[0]} ${all[k]}</span>`).join('')}</div></div>
+    </div>`;
+
+  cnt($('#k1'), ns.length);
+  cnt($('#k2'), last.p, '%', 1);
+  cnt($('#k3'), all.p, '%', 1);
+  cnt($('#k4'), low);
+
+  // Race Chart
+  const R = $('#race'), N = ds.length;
+  let rows = [], mode = 'p', p = 0, play = true, sp = 2, tl = 0;
+
+  const cumH = cls.map(c => {
+    let s = 0;
+    return ds.map(d => {
+      const a = DS().att[d + '_' + c];
+      if (a) for (const k in a.recs) if (a.recs[k] === 'H') s++;
+      return s;
+    });
+  });
+
+  const cumT = cls.map(c => {
+    let s = 0;
+    return ds.map(d => {
+      const a = DS().att[d + '_' + c];
+      if (a) s += Object.keys(a.recs).length;
+      return s;
+    });
+  });
+
+  const pf = cls.map((c, i) => cumT[i][N - 1] ? cumH[i][N - 1] / cumT[i][N - 1] * 100 : 0);
+  const lo = Math.max(0, Math.floor((Math.min(...pf, 100) - 8) / 5) * 5);
+  const mxc = Math.max(...cumH.map(a => a[N - 1]), 1);
+
+  const dom = () => {
+    if (mode === 'p') {
+      const st = 100 - lo > 30 ? 10 : 5, t = [];
+      for (let x = lo; x <= 100; x += st) t.push(x);
+      return { a: lo, b: 100, t };
+    }
+    const st = mxc > 400 ? 100 : mxc > 150 ? 50 : mxc > 60 ? 20 : 10;
+    const b = Math.ceil(mxc / st) * st, t = [];
+    for (let x = 0; x <= b; x += st) t.push(x);
+    return { a: 0, b, t };
+  };
+
+  let RH = 52;
+  const meas = () => { RH = parseFloat(getComputedStyle(R).getPropertyValue('--rh')) || 52; };
+  window._rz = () => {
+    if (!$('#race')) return;
+    meas();
+    R.style.height = (26 + cls.length * RH) + 'px';
+    frame(p);
+  };
+  if (!window._rzs) {
+    window._rzs = 1;
+    addEventListener('resize', () => window._rz && window._rz());
+  }
+
+  function build() {
+    const dm = dom();
+    R.style.setProperty('--rh', cls.length > 10 ? '40px' : '');
+    meas();
+    R.style.height = (26 + cls.length * RH) + 'px';
+    R.innerHTML =
+      '<div class="ga">' +
+      dm.t.map(v => `<div class="gl" style="--f:${(v - dm.a) / (dm.b - dm.a)}"><span>${v}${mode === 'p' ? '%' : ''}</span></div>`).join('') +
+      '</div>' +
+      cls.map(c => `<div class="row"><div class="lb"><span class="rk"></span><b>${esc(c)}</b></div><div class="trk"><div class="bar" style="background:linear-gradient(90deg,color-mix(in srgb,${COL[DS().classes.indexOf(c) % COL.length]} 60%,#fff),${COL[DS().classes.indexOf(c) % COL.length]})"></div></div><div class="val"></div></div>`).join('');
+    rows = [...R.querySelectorAll('.row')];
+  }
+
+  function frame(p) {
+    const i = Math.min(Math.floor(p), N - 1), f = p - i, j = Math.min(i + 1, N - 1);
+    const I = (a, k) => a[k][i] + (a[k][j] - a[k][i]) * f;
+    const dm = dom();
+    const v = cls.map((c, k) => {
+      const h = I(cumH, k), t = I(cumT, k);
+      return { h, pc: t ? h / t * 100 : 0 };
+    });
+    const val = v.map(x => mode === 'p' ? x.pc : x.h);
+    const ord = val.map((x, k) => k).sort((a, b) => val[b] - val[a]);
+
+    ord.forEach((k, r) => {
+      const row = rows[k];
+      row.classList.toggle('first', r === 0);
+      row.style.transform = `translateY(${r * RH}px)`;
+      row.querySelector('.rk').textContent = r < 3 ? ['🥇', '🥈', '🥉'][r] : '#' + (r + 1);
+      row.querySelector('.bar').style.width = Math.max(.01, Math.min(1, (val[k] - dm.a) / (dm.b - dm.a))) * 100 + '%';
+      row.querySelector('.val').innerHTML = mode === 'p'
+        ? `${v[k].pc.toFixed(1)}%<small>${Math.round(v[k].h)} hadir</small>`
+        : `${Math.round(v[k].h)} hadir<small>${v[k].pc.toFixed(1)}%</small>`;
+    });
+
+    const t = ord[0];
+    $('#ld').innerHTML = cls.length
+      ? `🏆 Terdepan: <b>${esc(cls[t])}</b> — ${mode === 'p' ? v[t].pc.toFixed(1) + '%' : Math.round(v[t].h) + ' hadir'} <span class="mu">• Terendah: ${esc(cls[ord[ord.length - 1]])} (${mode === 'p' ? v[ord[ord.length - 1]].pc.toFixed(1) + '%' : Math.round(v[ord[ord.length - 1]].h) + ' hadir'})</span>`
+      : 'Belum ada kelas';
+    $('#dl').textContent = 'Hari ' + (i + 1) + '/' + N + ' • ' + new Date(ds[i] + 'T00:00').toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
+    $('#sc').value = p;
+  }
+
+  const pb = () => $('#pp').textContent = play ? '⏸ Jeda' : '▶ Putar';
+  build();
+  frame(0);
+
+  function loop(t) {
+    if (!$('#race') || page !== 'dash') return;
+    const dt = Math.min(.05, (t - tl) / 1000 || 0);
+    tl = t;
+    if (play) {
+      p += dt * sp;
+      if (p >= N - 1) { p = N - 1; play = false; pb(); }
+      frame(p);
+    }
+    raf = requestAnimationFrame(loop);
+  }
+
+  $('#pp').onclick = () => { if (p >= N - 1) p = 0; play = !play; pb(); };
+  $('#pl').onclick = () => { p = 0; play = true; pb(); };
+  document.querySelectorAll('#spd button').forEach(b => b.onclick = () => {
+    sp = +b.dataset.s;
+    document.querySelectorAll('#spd button').forEach(x => x.classList.toggle('on', x === b));
+  });
+  document.querySelectorAll('#md button').forEach(b => b.onclick = () => {
+    mode = b.dataset.m;
+    document.querySelectorAll('#md button').forEach(x => x.classList.toggle('on', x === b));
+    build();
+    frame(p);
+  });
+  $('#sc').oninput = e => { play = false; pb(); p = +e.target.value; frame(p); };
+  raf = requestAnimationFrame(loop);
+
+  // Line Chart
+  const pts = ds.map((d, i) => {
+    const s = stat(cls, [d]);
+    return [40 + i * (540 / Math.max(1, ds.length - 1)), 180 - (s.p - 60) / 40 * 160, s.p];
+  });
+  $('#ln').innerHTML =
+    [60, 70, 80, 90, 100].map(v => `<line x1="40" x2="580" y1="${180 - (v - 60) / 40 * 160}" y2="${180 - (v - 60) / 40 * 160}" stroke="var(--ln)"/><text x="4" y="${184 - (v - 60) / 40 * 160}" font-size="11" fill="var(--mu)">${v}%</text>`).join('') +
+    `<path class="line" pathLength="1" d="M${pts.map(p => p[0].toFixed(1) + ',' + Math.max(10, p[1]).toFixed(1)).join(' L')}"/>`;
+
+  // Donut Chart
+  let off = 0;
+  const g = $('#dn'), C = 2 * Math.PI * 38;
+  g.innerHTML = Object.entries(ST).map(([k, v]) => {
+    const l = all.T ? all[k] / all.T * C : 0;
+    const e = `<circle class="seg2" cx="50" cy="50" r="38" fill="none" stroke="${v[1]}" stroke-width="14" stroke-dasharray="0 ${C}" stroke-dashoffset="${-off}" data-l="${l}"/>`;
+    off += l;
+    return e;
+  }).join('');
+  setTimeout(() => g.querySelectorAll('circle').forEach(c => c.setAttribute('stroke-dasharray', c.dataset.l + ' ' + C)), 60);
+  $('#dt').textContent = all.p.toFixed(0) + '%';
+}
