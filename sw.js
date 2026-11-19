@@ -1,4 +1,4 @@
-const C = 'siandal-gas-v6';
+const C = 'siandal-gas-v7';
 const F = [
   './',
   './index.html',
@@ -19,12 +19,10 @@ const F = [
 ];
 
 self.addEventListener('install', e => {
-  // JANGAN panggil self.skipWaiting() di sini agar banner notifikasi update muncul dulu
   e.waitUntil(caches.open(C).then(c => c.addAll(F)));
 });
 
 self.addEventListener('message', e => {
-  // Baru aktifkan saat user klik tombol "Perbarui sekarang"
   if (e.data === 'SKIP') self.skipWaiting();
 });
 

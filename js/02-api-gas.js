@@ -226,9 +226,11 @@ async function syncStaff() {
   (res.attendance || []).forEach(r => {
     const k = r.att_date + '_' + r.class;
     if (S.outbox.includes(k) || pendingDelAtt.has(k)) return;
-    const x = S.att[k] || (S.att[k] = { recs: {}, ts: 1 });
+    const x = S.att[k] || (S.att[k] = { recs: {}, ts: 1, by: '' });
     if (x.recs[r.student_id] !== r.status) { x.recs[r.student_id] = r.status; ch = 1; }
-    x.ts = Math.max(x.ts, Date.parse(r.updated_at) || 1);
+    const rTs = Date.parse(r.updated_at) || 1;
+    if (rTs >= x.ts && r.updated_by) x.by = r.updated_by;
+    x.ts = Math.max(x.ts, rTs);
     if (r.updated_at > cur) cur = r.updated_at;
   });
   S.cur = cur;

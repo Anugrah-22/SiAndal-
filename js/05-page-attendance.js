@@ -1,16 +1,29 @@
 /**
  * js/05-page-attendance.js
- * Halaman Input Absensi Harian (H/S/I/A) per kelas dengan dukungan penyimpanan offline,
- * filter otomatis tanggal masuk / mutasi keluar siswa pindahan, serta pembatalan absensi.
+ * Halaman Input Absensi Harian (H/S/I/A) per kelas dengan proteksi anti-tabrakan antar guru
+ * (info guru penginput & mode kunci), filter siswa pindahan, serta pembatalan absensi.
  */
 
 function absen() {
   const cls = vis();
-  let d = TODAY, c = cls[0], draft;
+  let d = TODAY, c = cls[0], draft, unlockEdit = false;
   const el = $('#pg');
   if (!cls.length) {
     el.innerHTML = '<div class="card">Belum ada kelas yang diatur untuk akun ini. Hubungi admin.</div>';
     return;
+  }
+
+  function resolveActorName(u) {
+    if (!u) return 'Guru / Staf';
+    const found = (S.users || []).find(x => x.u === u);
+    return found ? found.n : u;
+  }
+
+  function formatTimeLocal(ts) {
+    if (!ts || ts <= 1) return '';
+    try {
+      return new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
   }
 
   function draw() {
@@ -30,22 +43,38 @@ function absen() {
     }
     const hasDraft = Object.keys(draft).length > 0;
     const isPendingSync = S.outbox.includes(k);
+    const isLocked = !!ex && !unlockEdit;
+    const actorName = ex ? resolveActorName(ex.by) : '';
+    const savedTime = ex ? formatTimeLocal(ex.ts) : '';
 
     el.innerHTML = `
       <div class="card">
         <div class="ctl">
           <input type="date" id="dd" max="${TODAY}" value="${d}" style="width:auto">
           <select id="cc">${cls.map(x => `<option ${x === c ? 'selected' : ''}>${x}</option>`).join('')}</select>
-          <span class="pill">${ex ? (isPendingSync ? 'Tersimpan (antrean sinkron)' : 'Tersimpan') : 'Belum diisi'}</span>
+          <span class="pill" style="${ex ? 'background:color-mix(in srgb,var(--g) 16%,transparent);color:var(--g);border-color:var(--g)' : ''}">${ex ? (isPendingSync ? '⏳ Tersimpan (antrean)' : '✅ Sudah Diabsen') : 'Belum diisi'}</span>
           <span style="flex:1"></span>
-          ${hasDraft ? `<button class="btn o" id="rst" title="Kosongkan pilihan sementara di layar">Reset Pilihan</button>` : ''}
-          ${ex ? `<button class="btn o" id="delAtt" style="color:var(--r);border-color:var(--r)" title="Hapus data absensi yang sudah tersimpan pada tanggal dan kelas ini">🗑 Batalkan Absensi</button>` : ''}
-          <button class="btn o" id="all">Semua Hadir</button>
-          <button class="btn" id="sv">💾 Simpan</button>
+          ${isLocked ? `
+            <button class="btn o" id="unlockBtn" style="border-color:var(--pr);color:var(--pr)">✏️ Ubah / Perbarui Absensi</button>
+          ` : `
+            ${hasDraft ? `<button class="btn o" id="rst" title="Kosongkan pilihan sementara di layar">Reset Pilihan</button>` : ''}
+            ${ex ? `<button class="btn o" id="delAtt" style="color:var(--r);border-color:var(--r)" title="Hapus data absensi yang sudah tersimpan pada tanggal dan kelas ini">🗑 Batalkan Absensi</button>` : ''}
+            <button class="btn o" id="all">Semua Hadir</button>
+            <button class="btn" id="sv">💾 Simpan</button>
+          `}
         </div>
+
+        ${ex ? `
+          <div style="background:color-mix(in srgb,var(--g) 12%,transparent);border:1px solid color-mix(in srgb,var(--g) 40%,transparent);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+            <span>✅ Absensi kelas <b>${esc(c)}</b> tanggal <b>${d}</b> sudah diisi oleh <b>${esc(actorName)}</b>${savedTime ? ` pada pukul <b>${savedTime}</b>` : ''}.</span>
+            <span style="color:var(--mu);font-size:12px">${isLocked ? 'Guru jam pelajaran berikutnya tidak perlu mengabsen ulang kecuali ada perubahan status siswa (klik tombol Ubah di atas).' : 'Mode edit aktif — silakan sesuaikan jika ada siswa yang sakit/izin menyusul.'}</span>
+          </div>
+        ` : ''}
+
         ${d !== TODAY ? `<div style="font-size:12px;color:var(--y);font-weight:600;margin-bottom:8px">📅 Perhatian: Anda sedang membuka tanggal <b>${d}</b> (bukan hari ini ${TODAY}).</div>` : ''}
         ${notJoinedYet.length ? `<div style="font-size:12px;color:var(--mu);margin-bottom:8px">ℹ️ <b>${notJoinedYet.length}</b> siswa pindahan baru masuk setelah tanggal ${d} tidak ditampilkan (${notJoinedYet.map(s => esc(s.n) + ' • masuk ' + s.j).join(', ')}).</div>` : ''}
         ${alreadyLeft.length ? `<div style="font-size:12px;color:var(--mu);margin-bottom:8px">ℹ️ <b>${alreadyLeft.length}</b> siswa mutasi keluar sebelum tanggal ${d} tidak ditampilkan (${alreadyLeft.map(s => esc(s.n) + ' • keluar ' + s.l).join(', ')}).</div>` : ''}
+
         <div class="sc">
           <table>
             <tr><th>No</th><th>Nama</th><th>Status</th></tr>
@@ -54,8 +83,8 @@ function absen() {
                 <td>${i + 1}</td>
                 <td>${esc(s.n)}${s.j && s.j === d ? ' <span class="pill" style="font-size:11px">Baru masuk</span>' : ''}</td>
                 <td>
-                  <div class="seg" data-s="${s.id}">
-                    ${Object.keys(ST).map(k => `<button class="${k} ${draft[s.id] === k ? 'on' : ''}" data-k="${k}" title="${ST[k][0]}">${k}</button>`).join('')}
+                  <div class="seg" data-s="${s.id}" style="${isLocked ? 'opacity:0.78;pointer-events:none' : ''}">
+                    ${Object.keys(ST).map(k => `<button class="${k} ${draft[s.id] === k ? 'on' : ''}" data-k="${k}" title="${ST[k][0]}" ${isLocked ? 'disabled' : ''}>${k}</button>`).join('')}
                   </div>
                 </td>
               </tr>`).join('') || `<tr><td colspan="3" class="mu">Tidak ada siswa yang terdaftar aktif di kelas ${esc(c)} pada tanggal ${d}.</td></tr>`}
@@ -63,9 +92,19 @@ function absen() {
         </div>
       </div>`;
 
-    $('#dd').onchange = e => { d = e.target.value || TODAY; draft = 0; draw(); };
-    $('#cc').onchange = e => { c = e.target.value; draft = 0; draw(); };
+    $('#dd').onchange = e => { d = e.target.value || TODAY; draft = 0; unlockEdit = false; draw(); };
+    $('#cc').onchange = e => { c = e.target.value; draft = 0; unlockEdit = false; draw(); };
+
+    if ($('#unlockBtn')) {
+      $('#unlockBtn').onclick = () => {
+        unlockEdit = true;
+        toast('Mode edit dibuka. Silakan ubah status siswa lalu klik Simpan.');
+        draw();
+      };
+    }
+
     el.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+      if (isLocked) return;
       draft[b.parentNode.dataset.s] = b.dataset.k;
       draw();
     });
@@ -81,21 +120,23 @@ function absen() {
       S.datt = S.datt || [];
       if (!S.datt.includes(k)) S.datt.push(k);
       draft = {};
+      unlockEdit = false;
       save();
       toast(navigator.onLine && REM ? '🗑 Absensi dibatalkan & menyinkronkan…' : '🗑 Absensi dibatalkan (lokal)');
       push();
       draw();
     };
-    $('#all').onclick = () => { ss.forEach(s => draft[s.id] = 'H'); draw(); };
-    $('#sv').onclick = () => {
+    if ($('#all')) $('#all').onclick = () => { ss.forEach(s => draft[s.id] = 'H'); draw(); };
+    if ($('#sv')) $('#sv').onclick = () => {
       if (!ss.length) return toast('Tidak ada siswa aktif pada tanggal ini');
       if (ss.some(s => !draft[s.id])) return toast('Masih ada siswa yang belum diisi');
       const k2 = d + '_' + c;
       const cleanRecs = {};
       ss.forEach(s => { cleanRecs[s.id] = draft[s.id]; });
-      S.att[k2] = { recs: cleanRecs, ts: Date.now() };
+      S.att[k2] = { recs: cleanRecs, ts: Date.now(), by: (user && user.u) || '' };
       if (S.datt) S.datt = S.datt.filter(x => x !== k2);
       if (!S.outbox.includes(k2)) S.outbox.push(k2);
+      unlockEdit = false;
       save();
       toast(navigator.onLine && REM ? 'Menyimpan & sinkron…' : '💾 Disimpan lokal — akan sinkron saat online');
       push();

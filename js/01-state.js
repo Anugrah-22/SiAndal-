@@ -15,8 +15,9 @@ const ST = {
   A: ['Alpa', 'var(--r)']
 };
 
-const VER = '1.6.0-gas';
+const VER = '1.7.0-gas';
 const CHANGELOG = [
+  ['1.7.0-gas', '19 Nov 2026', 'Proteksi anti-tabrakan absensi antar guru (info guru penginput, jam absen, dan kunci edit aman), perbaikan grafik tren harian agar tidak terpotong saat libur, serta pembaruan PWA otomatis dengan notifikasi versi.'],
   ['1.6.0-gas', '19 Nov 2026', 'Peningkatan antarmuka Dashboard dan Laporan: peringatan siswa perlu perhatian (<85% atau Alpa >= 3), kotak detail interaktif, dan progress bar persentase.'],
   ['1.5.0-gas', '19 Nov 2026', 'Dukungan tanggal masuk & mutasi keluar siswa pindahan: siswa baru tidak muncul pada absensi bulan/tanggal sebelum masuk, dan siswa keluar otomatis nonaktif mulai tanggal keluar.'],
   ['1.4.0-gas', '19 Nov 2026', 'Perbaikan sinkronisasi agar input baru tidak tertimpa, fitur batal/hapus absensi per tanggal, filter bulan pada Dashboard, dan pembaruan judul Peringkat Kehadiran Kelas.'],

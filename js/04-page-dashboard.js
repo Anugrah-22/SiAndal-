@@ -337,16 +337,30 @@ function dash() {
   $('#sc').oninput = e => { play = false; pb(); p = +e.target.value; frame(p); };
   raf = requestAnimationFrame(loop);
 
-  // Line Chart
-  const pts = ds.map((d, i) => {
-    const s = stat(cls, [d]);
-    return [40 + i * (540 / Math.max(1, ds.length - 1)), 180 - (s.p - 60) / 40 * 160, s.p];
+  // Line Chart (Hanya hari yang ada catatan absensi agar tidak anjlok ke 0% saat libur)
+  const validDays = ds.map(d => ({ d, s: stat(cls, [d]) })).filter(x => x.s.T > 0);
+  const minVal = validDays.length ? Math.max(0, Math.floor((Math.min(...validDays.map(x => x.s.p), 90) - 5) / 10) * 10) : 60;
+  const spanY = Math.max(10, 100 - minVal);
+  const ticks = [];
+  const stepY = spanY > 40 ? 20 : 10;
+  for (let v = minVal; v <= 100; v += stepY) ticks.push(v);
+
+  const pts = validDays.map((x, i) => {
+    const px = validDays.length > 1 ? 45 + i * (530 / (validDays.length - 1)) : 310;
+    const py = 175 - ((x.s.p - minVal) / spanY) * 155;
+    return [px, Math.min(175, Math.max(15, py)), x.s.p, x.d];
   });
+
   $('#ln').innerHTML =
-    [60, 70, 80, 90, 100].map(v => `<line x1="40" x2="580" y1="${180 - (v - 60) / 40 * 160}" y2="${180 - (v - 60) / 40 * 160}" stroke="var(--ln)"/><text x="4" y="${184 - (v - 60) / 40 * 160}" font-size="11" fill="var(--mu)">${v}%</text>`).join('') +
+    ticks.map(v => {
+      const y = 175 - ((v - minVal) / spanY) * 155;
+      return `<line x1="45" x2="580" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--ln)"/><text x="4" y="${(y + 4).toFixed(1)}" font-size="11" fill="var(--mu)">${v}%</text>`;
+    }).join('') +
     (pts.length > 1
-      ? `<path class="line" pathLength="1" d="M${pts.map(p => p[0].toFixed(1) + ',' + Math.max(10, p[1]).toFixed(1)).join(' L')}"/>`
-      : `<circle cx="${pts[0][0].toFixed(1)}" cy="${Math.max(10, pts[0][1]).toFixed(1)}" r="4" fill="var(--pr)"/>`);
+      ? `<path class="line" pathLength="1" d="M${pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L')}"/>`
+      : '') +
+    pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="var(--pr)"><title>${p[3]}: ${p[2].toFixed(1)}%</title></circle>`).join('') +
+    (pts.length ? `<text x="45" y="195" font-size="10" fill="var(--mu)">${pts[0][3].slice(5)}</text><text x="580" y="195" text-anchor="end" font-size="10" fill="var(--mu)">${pts[pts.length - 1][3].slice(5)}</text>` : `<text x="300" y="105" text-anchor="middle" font-size="12" fill="var(--mu)">Belum ada data harian</text>`);
 
   // Donut Chart
   let off = 0;
