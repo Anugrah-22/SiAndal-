@@ -15,8 +15,9 @@ const ST = {
   A: ['Alpa', 'var(--r)']
 };
 
-const VER = '1.5.0-gas';
+const VER = '1.6.0-gas';
 const CHANGELOG = [
+  ['1.6.0-gas', '19 Nov 2026', 'Peningkatan antarmuka Dashboard dan Laporan: tambahan peringatan siswa perlu perhatian (kehadiran < 85% atau Alpa > 3) dan progress bar persentase.'],
   ['1.5.0-gas', '19 Nov 2026', 'Dukungan tanggal masuk & mutasi keluar siswa pindahan: siswa baru tidak muncul pada absensi bulan/tanggal sebelum masuk, dan siswa keluar otomatis nonaktif mulai tanggal keluar.'],
   ['1.4.0-gas', '19 Nov 2026', 'Perbaikan sinkronisasi agar input baru tidak tertimpa, fitur batal/hapus absensi per tanggal, filter bulan pada Dashboard, dan pembaruan judul Peringkat Kehadiran Kelas.'],
   ['1.3.0-gas', '19 Nov 2026', 'Tambah fitur impor siswa massal (CSV/Excel + template) dan fitur ubah/naik kelas siswa (satuan maupun massal) tanpa menghapus riwayat.'],

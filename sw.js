@@ -1,4 +1,4 @@
-const C = 'siandal-gas-v4';
+const C = 'siandal-gas-v5';
 const F = [
   './',
   './index.html',
