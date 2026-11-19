@@ -24,7 +24,7 @@ function cnt(el, to, suf = '', dec = 0) {
 function netUI() {
   const n = $('#net'), on = navigator.onLine;
   n.className = 'pill' + (on ? '' : ' off');
-  const qLen = S ? (S.outbox.length + (S.uout || []).length) : 0;
+  const qLen = S ? (S.outbox.length + (S.datt || []).length + (S.uout || []).length) : 0;
   n.lastChild.textContent =
     (on ? 'Online' : 'Offline') +
     ((REM && SESS) && on ? ' • terhubung GAS' : '') +

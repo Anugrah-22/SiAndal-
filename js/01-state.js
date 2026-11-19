@@ -15,10 +15,13 @@ const ST = {
   A: ['Alpa', 'var(--r)']
 };
 
-const VER = '1.2.0-gas';
+const VER = '1.5.0-gas';
 const CHANGELOG = [
+  ['1.5.0-gas', '19 Nov 2026', 'Dukungan tanggal masuk & mutasi keluar siswa pindahan: siswa baru tidak muncul pada absensi bulan/tanggal sebelum masuk, dan siswa keluar otomatis nonaktif mulai tanggal keluar.'],
+  ['1.4.0-gas', '19 Nov 2026', 'Perbaikan sinkronisasi agar input baru tidak tertimpa, fitur batal/hapus absensi per tanggal, filter bulan pada Dashboard, dan pembaruan judul Peringkat Kehadiran Kelas.'],
+  ['1.3.0-gas', '19 Nov 2026', 'Tambah fitur impor siswa massal (CSV/Excel + template) dan fitur ubah/naik kelas siswa (satuan maupun massal) tanpa menghapus riwayat.'],
   ['1.2.0-gas', '19 Nov 2026', 'Migrasi backend ke Google Apps Script + Google Sheets dengan arsitektur file terpecah (modular).'],
-  ['1.2.0', '18 Nov 2026', 'Balapan kehadiran lebih mudah dibaca, tampilan desktop dioptimalkan, mode pemeliharaan, notifikasi pembaruan.'],
+  ['1.2.0', '18 Nov 2026', 'Peringkat kehadiran lebih mudah dibaca, tampilan desktop dioptimalkan, mode pemeliharaan, notifikasi pembaruan.'],
   ['1.1.0', '', 'Dashboard publik, login staf, manajemen pengguna dan kelas, backup Excel.'],
   ['1.0.0', '', 'Rilis awal SiAndal: absensi offline dan online, dashboard animasi.']
 ];
@@ -133,14 +136,14 @@ function past(n) {
 
 function seed() {
   if (REM) {
-    S = { students: [], att: {}, outbox: [], users: [], uout: [], classes: [], cts: 0, mq: 0, mt: S && S.mt || undefined };
+    S = { students: [], att: {}, outbox: [], datt: [], users: [], uout: [], classes: [], cts: 0, mq: 0, mt: S && S.mt || undefined };
     save();
     return;
   }
   const R = rng(7);
   const F = 'Ahmad Budi Citra Dewi Eka Fajar Gita Hana Indra Joko Kartika Lina Maya Naufal Putri Rizky Sari Tegar Umar Vina Wulan Yusuf Zahra Andi'.split(' ');
   const L = 'Saputra Lestari Pratama Hidayat Wijaya Nugroho Rahma Santoso Kurniawan Permata'.split(' ');
-  S = { students: [], att: {}, outbox: [], users: (S && S.users) || defUsers(), uout: [], classes: [...CL], cts: 0, mq: 0, mt: S && S.mt || undefined };
+  S = { students: [], att: {}, outbox: [], datt: [], users: (S && S.users) || defUsers(), uout: [], classes: [...CL], cts: 0, mq: 0, mt: S && S.mt || undefined };
   let id = 1;
   const base = [.97, .94, .92, .95, .9, .93];
   CL.forEach((c, ci) => {
@@ -168,12 +171,24 @@ const dates = () => {
   return DS().classes.some(c => DS().att[TODAY + '_' + c]) ? [...p.slice(1), TODAY] : p;
 };
 
+const stuOnDate = (s, d) => {
+  if (!s) return false;
+  if (s.j && d < s.j) return false;
+  if (s.l && d > s.l) return false;
+  return true;
+};
+const isActiveStu = (s, refDate = TODAY) => stuOnDate(s, refDate);
+
 function stat(cls, ds) {
   const o = { H: 0, S: 0, I: 0, A: 0 };
-  const ids = new Set(DS().students.filter(s => cls.includes(s.c)).map(s => s.id));
+  const stuMap = {};
+  DS().students.filter(s => cls.includes(s.c)).forEach(s => stuMap[s.id] = s);
   ds.forEach(d => cls.forEach(c => {
     const a = DS().att[d + '_' + c];
-    if (a) for (const k in a.recs) if (ids.has(k)) o[a.recs[k]]++;
+    if (a) for (const k in a.recs) {
+      const st = stuMap[k];
+      if (st && stuOnDate(st, d)) o[a.recs[k]]++;
+    }
   }));
   o.T = o.H + o.S + o.I + o.A;
   o.p = o.T ? o.H / o.T * 100 : 0;

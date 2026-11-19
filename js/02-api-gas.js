@@ -1,8 +1,10 @@
 /**
  * js/02-api-gas.js
  * Lapisan komunikasi Google Apps Script (mendukung mode PWA fetch maupun HtmlService google.script.run)
- * serta mesin sinkronisasi otomatis offline-first.
+ * serta mesin sinkronisasi otomatis offline-first dengan proteksi anti-timpa (race-condition safe).
  */
+
+let _needPush = 0;
 
 const sessSave = s => {
   SESS = s;
@@ -55,7 +57,7 @@ async function loginR(u, p) {
 }
 
 async function pubR() {
-  const res = await rqGas('public_data', { days: 60 });
+  const res = await rqGas('public_data', { days: 365 });
   const o = res.overview || [], d = res.dashboard || [];
   const mx = {};
   d.forEach(r => { mx[r.class] = Math.max(mx[r.class] || 0, r.h + r.s + r.i + r.a); });
@@ -109,6 +111,7 @@ async function syncStaff() {
   if (adm) {
     for (const u of [...(S.uout || [])]) {
       const r = S.users.find(x => x.u === u);
+      const snapTs = r ? (r.ts || 0) : 0;
       try {
         if (r) {
           await rqGas('admin_users_upsert', {
@@ -122,8 +125,11 @@ async function syncStaff() {
         } else {
           await rqGas('admin_users_delete', { username: u });
         }
-        S.uout = S.uout.filter(x => x !== u);
-        if (window._pw) delete window._pw[u];
+        const curUser = S.users.find(x => x.u === u);
+        if (!curUser || (curUser.ts || 0) <= snapTs) {
+          S.uout = S.uout.filter(x => x !== u);
+          if (window._pw) delete window._pw[u];
+        }
       } catch (e) {
         S.uout = S.uout.filter(x => x !== u);
         toast('Akun ' + u + ': ' + e.message);
@@ -132,41 +138,94 @@ async function syncStaff() {
     save();
   }
 
+  // Ambil snapshot state sebelum request jaringan dimulai (mencegah race condition menimpa input baru)
+  const snapCts = S.cts || 0;
+  const snapMq = adm && !!S.mq;
+  const snapRen = adm ? JSON.parse(JSON.stringify(S.ren || [])) : [];
+  const snapDst = adm ? [...(S.dst || [])] : [];
+  const snapDcl = adm ? [...(S.dcl || [])] : [];
+  const snapClasses = adm ? [...S.classes] : [];
+  const snapStudents = adm ? JSON.parse(JSON.stringify(S.students)) : [];
+
   const attRows = [];
   const pushedKeys = [];
+  const snapAttTs = {};
   for (const k of [...S.outbox]) {
     const i = k.lastIndexOf('_'), d = k.slice(0, i), c = k.slice(i + 1), a = S.att[k];
     if (!a) { S.outbox = S.outbox.filter(x => x !== k); continue; }
     Object.keys(a.recs).forEach(id => attRows.push({ student_id: id, att_date: d, class: c, status: a.recs[id] }));
     pushedKeys.push(k);
+    snapAttTs[k] = a.ts || 0;
   }
 
+  const snapDatt = [...(S.datt || [])];
+  const deletedAttendance = snapDatt.map(k => {
+    const i = k.lastIndexOf('_');
+    return { att_date: k.slice(0, i), class: k.slice(i + 1) };
+  });
+
   const res = await rqGas('sync_staff', {
-    ren: adm ? (S.ren || []) : [],
-    masterSync: adm && !!S.mq,
-    deletedStudents: adm ? (S.dst || []) : [],
-    deletedClasses: adm ? (S.dcl || []) : [],
-    classes: adm ? S.classes : [],
-    students: adm ? S.students : [],
+    ren: snapRen,
+    masterSync: snapMq,
+    deletedStudents: snapDst,
+    deletedClasses: snapDcl,
+    classes: snapClasses,
+    students: snapStudents,
+    deletedAttendance: deletedAttendance,
     attRows: attRows,
     cursor: S.cur || ''
   });
 
-  if (adm) { S.ren = []; S.dst = []; S.dcl = []; S.mq = 0; }
-  S.outbox = S.outbox.filter(x => !pushedKeys.includes(x));
+  // Bersihkan flag master hanya jika tidak ada perubahan baru yang terjadi selama request berjalan
+  if (adm && snapMq) {
+    if ((S.cts || 0) === snapCts) {
+      S.ren = [];
+      S.dst = [];
+      S.dcl = [];
+      S.mq = 0;
+    } else {
+      if (snapDst.length) {
+        const sentDst = new Set(snapDst);
+        S.dst = (S.dst || []).filter(id => !sentDst.has(id));
+      }
+      if (snapDcl.length) {
+        const sentDcl = new Set(snapDcl);
+        S.dcl = (S.dcl || []).filter(c => !sentDcl.has(c));
+      }
+      if (snapRen.length) {
+        S.ren = (S.ren || []).slice(snapRen.length);
+      }
+      S.mq = 1;
+    }
+  }
 
-  if (res.classes && JSON.stringify(res.classes) !== JSON.stringify(S.classes)) {
-    S.classes = res.classes;
-    ch = 1;
+  S.outbox = S.outbox.filter(k => {
+    if (!pushedKeys.includes(k)) return true;
+    return S.att[k] && (S.att[k].ts || 0) > (snapAttTs[k] || 0);
+  });
+
+  if (snapDatt.length) {
+    const sentDatt = new Set(snapDatt);
+    S.datt = (S.datt || []).filter(k => !sentDatt.has(k));
   }
-  if (res.students && !same(res.students, S.students)) {
-    S.students = res.students;
-    ch = 1;
+
+  // Terapkan data master dari server HANYA jika tidak ada perubahan lokal yang belum tersinkron
+  if (!S.mq) {
+    if (res.classes && JSON.stringify(res.classes) !== JSON.stringify(S.classes)) {
+      S.classes = res.classes;
+      ch = 1;
+    }
+    if (res.students && !same(res.students, S.students)) {
+      S.students = res.students;
+      ch = 1;
+    }
   }
+
   let cur = S.cur || '';
+  const pendingDelAtt = new Set(S.datt || []);
   (res.attendance || []).forEach(r => {
     const k = r.att_date + '_' + r.class;
-    if (S.outbox.includes(k)) return;
+    if (S.outbox.includes(k) || pendingDelAtt.has(k)) return;
     const x = S.att[k] || (S.att[k] = { recs: {}, ts: 1 });
     if (x.recs[r.student_id] !== r.status) { x.recs[r.student_id] = r.status; ch = 1; }
     x.ts = Math.max(x.ts, Date.parse(r.updated_at) || 1);
@@ -179,12 +238,19 @@ async function syncStaff() {
 }
 
 async function pushR() {
-  if (busyR || !navigator.onLine) return;
+  if (!navigator.onLine) return;
+  if (busyR) {
+    _needPush = 1;
+    return;
+  }
   busyR = 1;
   try {
-    if (SESS && user && user.r !== 'tamu') await syncStaff();
-    else await pubR();
-    await maintR();
+    do {
+      _needPush = 0;
+      if (SESS && user && user.r !== 'tamu') await syncStaff();
+      else await pubR();
+      await maintR();
+    } while (_needPush && navigator.onLine);
   } catch (e) {
     lastErr(e);
   } finally {

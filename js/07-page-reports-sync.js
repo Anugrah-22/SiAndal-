@@ -6,7 +6,7 @@
 
 function lap() {
   const cls = vis(), ds = dates();
-  const rows = cls.map(c => ({ c, ...stat([c], ds), n: S.students.filter(s => s.c === c).length }));
+  const rows = cls.map(c => ({ c, ...stat([c], ds), n: S.students.filter(s => s.c === c && isActiveStu(s)).length }));
   $('#pg').innerHTML = `
     <div class="card">
       <div class="ctl"><h3 style="margin:0">Rekap ${ds.length} hari terakhir</h3><span style="flex:1"></span><button class="btn" id="xl">📊 Unduh Excel (.xlsx)</button><button class="btn o" id="cv">⬇ CSV</button></div>
@@ -148,7 +148,7 @@ function buildXlsx(o) {
     if (!a) return;
     for (const id in a.recs) {
       const s = sm[id];
-      if (!s || s.c !== c) continue;
+      if (!s || !stuOnDate(s, d)) continue;
       const k = a.recs[id];
       bc[c][k]++; bd[d][k]++; bs[id][k]++;
       log.push([d, c, s.n, NM[k]]);
@@ -215,7 +215,7 @@ function buildXlsx(o) {
   cls.forEach((c, i) => {
     const r = 13 + i, x = bc[c];
     w1.set(r, 0, c, S.TX);
-    w1.set(r, 1, stu.filter(s => s.c === c).length, S.INT);
+    w1.set(r, 1, stu.filter(s => s.c === c && isActiveStu(s)).length, S.INT);
     KS.forEach((q, j) => w1.set(r, 2 + j, x[q], S.INT));
     w1.set(r, 6, tot(x), S.INT, `SUM(C${r}:F${r})`);
     w1.set(r, 7, pc(x), S.PCT, `IF(G${r}=0,0,C${r}/G${r})`);

@@ -1,17 +1,95 @@
 /**
  * js/04-page-dashboard.js
- * Halaman Dashboard: KPI ringkas, animasi Balapan Kehadiran Kelas,
+ * Halaman Dashboard: Filter periode/bulan, KPI ringkas, animasi Peringkat Kehadiran Kelas,
  * grafik garis tren harian, dan grafik donat komposisi status.
  */
 
+function getDashPeriodOptions_() {
+  const curYm = TODAY.slice(0, 7);
+  const ymSet = new Set();
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    ymSet.add(dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0'));
+  }
+  Object.keys(DS().att || {}).forEach(k => {
+    if (/^\d{4}-\d{2}-\d{2}_/.test(k)) ymSet.add(k.slice(0, 7));
+  });
+
+  const months = [...ymSet].sort((a, b) => b.localeCompare(a)).map(ym => {
+    const [y, m] = ym.split('-').map(Number);
+    const label = new Date(y, m - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    return {
+      val: ym,
+      label: ym === curYm ? `Bulan Ini (${label})` : label
+    };
+  });
+
+  return [
+    { val: '30d', label: '30 Hari Terakhir' },
+    ...months,
+    { val: 'all', label: 'Semua Data (1 Tahun Terakhir)' }
+  ];
+}
+
+function getDashDates_(period, cls) {
+  if (period === '30d') return dates();
+
+  const recorded = new Set();
+  Object.keys(DS().att || {}).forEach(k => {
+    const i = k.lastIndexOf('_');
+    const d = k.slice(0, i);
+    const c = k.slice(i + 1);
+    if ((!cls.length || cls.includes(c)) && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      recorded.add(d);
+    }
+  });
+
+  if (period === 'all') {
+    const merged = new Set([...dates(), ...recorded]);
+    return [...merged].sort();
+  }
+
+  // Specific month YYYY-MM
+  const [y, m] = period.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const out = [];
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dt = new Date(y, m - 1, day);
+    const s = iso(dt);
+    if (s > TODAY && out.length > 0) break;
+    const isWeekday = dt.getDay() % 6 !== 0;
+    if (isWeekday || recorded.has(s)) out.push(s);
+  }
+  return out.length ? out : [period + '-01'];
+}
+
 function dash() {
-  const cls = vis(), ds = dates(), all = stat(cls, ds), last = stat(cls, [ds[ds.length - 1]]);
-  const ns = DS().students.filter(s => cls.includes(s.c));
-  const low = DS() === G && G
+  const cls = vis();
+  const opts = getDashPeriodOptions_();
+  const period = (window._dashPeriod && opts.some(o => o.val === window._dashPeriod)) ? window._dashPeriod : '30d';
+  window._dashPeriod = period;
+  const periodLabel = (opts.find(o => o.val === period) || opts[0]).label;
+
+  const ds = getDashDates_(period, cls);
+  const all = stat(cls, ds);
+
+  // Cari tanggal terakhir pada periode terpilih yang memiliki catatan absensi
+  const activeDates = ds.filter(d => cls.some(c => {
+    const a = DS().att[d + '_' + c];
+    return a && Object.keys(a.recs || {}).length > 0;
+  }));
+  const lastDate = activeDates.length ? activeDates[activeDates.length - 1] : ds[ds.length - 1];
+  const last = stat(cls, [lastDate]);
+
+  const refEnd = ds[ds.length - 1] || TODAY;
+  const ns = DS().students.filter(s => cls.includes(s.c) && isActiveStu(s, refEnd));
+  const low = (DS() === G && G && period === '30d')
     ? G.low
     : ns.filter(s => {
         let h = 0, t = 0;
         ds.forEach(d => {
+          if (!stuOnDate(s, d)) return;
           const a = DS().att[d + '_' + s.c];
           if (a && a.recs[s.id]) { t++; if (a.recs[s.id] === 'H') h++; }
         });
@@ -19,21 +97,31 @@ function dash() {
       }).length;
 
   $('#pg').innerHTML = `
+    <div class="card" style="margin-bottom:14px;padding:12px 16px">
+      <div class="ctl" style="margin-bottom:0">
+        <span style="font-weight:700">📅 Periode Data:</span>
+        <select id="dpSel" style="min-width:210px">
+          ${opts.map(o => `<option value="${o.val}" ${o.val === period ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
+        </select>
+        <span class="mu" style="font-size:12px">${ds[0]} s/d ${ds[ds.length - 1]} (${ds.length} hari aktif)</span>
+      </div>
+    </div>
     <div class="kpis">
       <div class="card kpi"><b id="k1">0</b><span>Total siswa</span></div>
-      <div class="card kpi"><b id="k2">0</b><span>Kehadiran hari terakhir (${ds[ds.length - 1]})</span></div>
-      <div class="card kpi"><b id="k3">0</b><span>Rata-rata ${ds.length} hari</span></div>
+      <div class="card kpi"><b id="k2">0</b><span>Kehadiran terakhir (${lastDate})</span></div>
+      <div class="card kpi"><b id="k3">0</b><span>Rata-rata (${esc(periodLabel)})</span></div>
       <div class="card kpi"><b id="k4" class="bad">0</b><span>Siswa perlu perhatian (&lt;85%)</span></div>
     </div>
     <div class="card">
       <div class="ctl">
-        <h3 style="margin:0">🏁 Balapan Kehadiran Kelas</h3>
+        <h3 style="margin:0">🏆 Peringkat Kehadiran Kelas</h3>
         <span style="flex:1"></span>
         <div class="seg pr" id="md">
           <button data-m="p" class="on">% Kehadiran</button>
           <button data-m="c">Jumlah Hadir</button>
         </div>
       </div>
+      ${all.T === 0 ? `<div style="background:color-mix(in srgb,var(--y) 16%,transparent);border:1px solid var(--y);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px">Belum ada catatan absensi pada periode <b>${esc(periodLabel)}</b>. Pilih bulan lain pada filter di atas untuk melihat riwayat sebelumnya.</div>` : ''}
       <div class="lead"><span id="ld"></span><span style="flex:1"></span><b id="dl" style="color:var(--pr)"></b></div>
       <div class="race" id="race"></div>
       <div class="ctl" style="margin-top:12px">
@@ -44,29 +132,39 @@ function dash() {
           <button data-s="2" class="on">2×</button>
           <button data-s="4">4×</button>
         </div>
-        <input type="range" id="sc" min="0" max="${ds.length - 1}" step="0.01" value="0">
+        <input type="range" id="sc" min="0" max="${Math.max(0, ds.length - 1)}" step="0.01" value="0">
       </div>
-      <div class="cap">Persentase kehadiran = jumlah hadir ÷ seluruh catatan absensi sejak awal periode. Kelas dengan angka tertinggi berada di posisi teratas. Geser slider untuk melihat hari tertentu.</div>
+      <div class="cap">Persentase kehadiran = jumlah hadir ÷ seluruh catatan absensi pada periode terpilih. Kelas dengan persentase tertinggi berada di peringkat teratas. Geser slider untuk meninjau perkembangan harian.</div>
     </div>
     <div class="grid2">
       <div class="card"><h3>Tren kehadiran harian (%)</h3><svg id="ln" viewBox="0 0 600 200" width="100%"></svg></div>
       <div class="card"><h3>Komposisi status</h3><svg viewBox="0 0 100 100" width="100%" style="max-height:190px"><g transform="rotate(-90 50 50)" id="dn"></g><text x="50" y="54" text-anchor="middle" font-size="14" font-weight="800" fill="currentColor" id="dt">0%</text></svg><div class="leg">${Object.entries(ST).map(([k, v]) => `<span><i style="background:${v[1]}"></i>${v[0]} ${all[k]}</span>`).join('')}</div></div>
     </div>`;
 
+  $('#dpSel').onchange = e => {
+    window._dashPeriod = e.target.value;
+    render();
+  };
+
   cnt($('#k1'), ns.length);
   cnt($('#k2'), last.p, '%', 1);
   cnt($('#k3'), all.p, '%', 1);
   cnt($('#k4'), low);
 
-  // Race Chart
+  // Ranking Chart
   const R = $('#race'), N = ds.length;
-  let rows = [], mode = 'p', p = 0, play = true, sp = 2, tl = 0;
+  let rows = [], mode = 'p', p = 0, play = N > 1, sp = 2, tl = 0;
+
+  const stuById = {};
+  DS().students.forEach(s => stuById[s.id] = s);
 
   const cumH = cls.map(c => {
     let s = 0;
     return ds.map(d => {
       const a = DS().att[d + '_' + c];
-      if (a) for (const k in a.recs) if (a.recs[k] === 'H') s++;
+      if (a) for (const k in a.recs) {
+        if (stuOnDate(stuById[k], d) && a.recs[k] === 'H') s++;
+      }
       return s;
     });
   });
@@ -75,7 +173,9 @@ function dash() {
     let s = 0;
     return ds.map(d => {
       const a = DS().att[d + '_' + c];
-      if (a) s += Object.keys(a.recs).length;
+      if (a) for (const k in a.recs) {
+        if (stuOnDate(stuById[k], d)) s++;
+      }
       return s;
     });
   });
@@ -146,13 +246,14 @@ function dash() {
 
     const t = ord[0];
     $('#ld').innerHTML = cls.length
-      ? `🏆 Terdepan: <b>${esc(cls[t])}</b> — ${mode === 'p' ? v[t].pc.toFixed(1) + '%' : Math.round(v[t].h) + ' hadir'} <span class="mu">• Terendah: ${esc(cls[ord[ord.length - 1]])} (${mode === 'p' ? v[ord[ord.length - 1]].pc.toFixed(1) + '%' : Math.round(v[ord[ord.length - 1]].h) + ' hadir'})</span>`
+      ? `🏆 Peringkat 1: <b>${esc(cls[t])}</b> — ${mode === 'p' ? v[t].pc.toFixed(1) + '%' : Math.round(v[t].h) + ' hadir'} <span class="mu">• Terendah: ${esc(cls[ord[ord.length - 1]])} (${mode === 'p' ? v[ord[ord.length - 1]].pc.toFixed(1) + '%' : Math.round(v[ord[ord.length - 1]].h) + ' hadir'})</span>`
       : 'Belum ada kelas';
     $('#dl').textContent = 'Hari ' + (i + 1) + '/' + N + ' • ' + new Date(ds[i] + 'T00:00').toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
     $('#sc').value = p;
   }
 
   const pb = () => $('#pp').textContent = play ? '⏸ Jeda' : '▶ Putar';
+  pb();
   build();
   frame(0);
 
@@ -169,7 +270,7 @@ function dash() {
   }
 
   $('#pp').onclick = () => { if (p >= N - 1) p = 0; play = !play; pb(); };
-  $('#pl').onclick = () => { p = 0; play = true; pb(); };
+  $('#pl').onclick = () => { p = 0; play = N > 1; pb(); frame(0); };
   document.querySelectorAll('#spd button').forEach(b => b.onclick = () => {
     sp = +b.dataset.s;
     document.querySelectorAll('#spd button').forEach(x => x.classList.toggle('on', x === b));
@@ -190,7 +291,9 @@ function dash() {
   });
   $('#ln').innerHTML =
     [60, 70, 80, 90, 100].map(v => `<line x1="40" x2="580" y1="${180 - (v - 60) / 40 * 160}" y2="${180 - (v - 60) / 40 * 160}" stroke="var(--ln)"/><text x="4" y="${184 - (v - 60) / 40 * 160}" font-size="11" fill="var(--mu)">${v}%</text>`).join('') +
-    `<path class="line" pathLength="1" d="M${pts.map(p => p[0].toFixed(1) + ',' + Math.max(10, p[1]).toFixed(1)).join(' L')}"/>`;
+    (pts.length > 1
+      ? `<path class="line" pathLength="1" d="M${pts.map(p => p[0].toFixed(1) + ',' + Math.max(10, p[1]).toFixed(1)).join(' L')}"/>`
+      : `<circle cx="${pts[0][0].toFixed(1)}" cy="${Math.max(10, pts[0][1]).toFixed(1)}" r="4" fill="var(--pr)"/>`);
 
   // Donut Chart
   let off = 0;
