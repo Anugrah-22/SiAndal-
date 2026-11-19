@@ -77,6 +77,7 @@ $('#go').onclick = async () => {
       $('#err').textContent = '';
       user = { ...r.rec, id: u };
       ls.set('absenku_user', u);
+      if (S) { S.cur = ''; save(); }
       start();
       push();
       return;
@@ -105,6 +106,7 @@ document.querySelectorAll('.demo button').forEach(b => b.onclick = () => {
 $('#out').onclick = () => {
   if (user.r === 'tamu') return showLogin();
   ls.set('absenku_user', '');
+  if (S) { S.cur = ''; save(); }
   if (REM) sessSave(null);
   location.reload();
 };

@@ -67,7 +67,7 @@ function absen() {
 
         ${ex ? `
           <div style="background:color-mix(in srgb,var(--g) 12%,transparent);border:1px solid color-mix(in srgb,var(--g) 40%,transparent);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:8px">
-            <span>✅ Absensi kelas <b>${esc(c)}</b> tanggal <b>${d}</b> sudah diisi oleh <b>${esc(actorName)}</b>${savedTime ? ` pada pukul <b>${savedTime}</b>` : ''}.</span>
+            <span>✅ Absensi kelas <b>${esc(c)}</b> tanggal <b>${d}</b> terakhir diisi/diperbarui oleh <b>${esc(actorName)}</b>${savedTime ? ` pada pukul <b>${savedTime}</b>` : ''}.</span>
             <span style="color:var(--mu);font-size:12px">${isLocked ? 'Guru jam pelajaran berikutnya tidak perlu mengabsen ulang kecuali ada perubahan status siswa (klik tombol Ubah di atas).' : 'Mode edit aktif — ubah status yang perlu lalu klik Simpan, atau klik Batal Edit untuk kembali tanpa mengubah data.'}</span>
           </div>
         ` : ''}

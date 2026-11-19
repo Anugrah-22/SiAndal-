@@ -173,7 +173,7 @@ async function syncStaff() {
     students: snapStudents,
     deletedAttendance: deletedAttendance,
     attRows: attRows,
-    cursor: S.cur || ''
+    cursor: Object.values(S.att || {}).some(a => a && a.recs && Object.keys(a.recs).length && !a.by) ? '' : (S.cur || '')
   });
 
   // Bersihkan flag master hanya jika tidak ada perubahan baru yang terjadi selama request berjalan
@@ -262,15 +262,24 @@ async function syncStaff() {
   }
 
   let cur = S.cur || '';
+  const serverLatest = {};
   (res.attendance || []).forEach(r => {
     const k = r.att_date + '_' + r.class;
     if (S.outbox.includes(k) || pendingDelAtt.has(k)) return;
     const x = S.att[k] || (S.att[k] = { recs: {}, ts: 1, by: '' });
     if (x.recs[r.student_id] !== r.status) { x.recs[r.student_id] = r.status; ch = 1; }
     const rTs = Date.parse(r.updated_at) || 1;
-    if (rTs >= x.ts && r.updated_by && x.by !== r.updated_by) { x.by = r.updated_by; ch = 1; }
-    x.ts = Math.max(x.ts, rTs);
+    if (!serverLatest[k] || rTs >= serverLatest[k].ts) {
+      serverLatest[k] = { ts: rTs, by: r.updated_by || '' };
+    }
     if (r.updated_at > cur) cur = r.updated_at;
+  });
+  Object.keys(serverLatest).forEach(k => {
+    const x = S.att[k];
+    const sv = serverLatest[k];
+    if (!x) return;
+    if (sv.by && x.by !== sv.by) { x.by = sv.by; ch = 1; }
+    if (sv.ts > 1 && Math.abs(x.ts - sv.ts) > 1000) { x.ts = sv.ts; ch = 1; }
   });
   S.cur = cur;
   save();
