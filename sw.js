@@ -19,11 +19,12 @@ const F = [
 ];
 
 self.addEventListener('install', e => {
-  self.skipWaiting(); // Langsung aktifkan SW baru tanpa menunggu
+  // JANGAN panggil self.skipWaiting() di sini agar banner notifikasi update muncul dulu
   e.waitUntil(caches.open(C).then(c => c.addAll(F)));
 });
 
 self.addEventListener('message', e => {
+  // Baru aktifkan saat user klik tombol "Perbarui sekarang"
   if (e.data === 'SKIP') self.skipWaiting();
 });
 
@@ -31,7 +32,7 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
       .then(k => Promise.all(k.filter(x => x !== C).map(x => caches.delete(x))))
-      .then(() => self.clients.claim()) // Langsung kendalikan semua halaman terbuka
+      .then(() => self.clients.claim())
   );
 });
 
@@ -39,10 +40,8 @@ self.addEventListener('fetch', e => {
   const q = e.request;
   if (q.method !== 'GET') return;
 
-  // Abaikan request API ke Google Apps Script agar tidak ikut di-cache
   if (q.url.includes('script.google.com') || q.url.includes('googleusercontent.com')) return;
 
-  // Strategi Network-First: selalu ambil versi terbaru jika online, pakai cache jika offline
   e.respondWith(
     fetch(q)
       .then(n => {
