@@ -96,22 +96,67 @@ function dash() {
         return t && h / t < .85;
       }).length;
 
+  // Mengambil data spesifik siswa perlu perhatian
+  const lowStudents = [];
+  ns.forEach(s => {
+    let h = 0, t = 0, a = 0;
+    ds.forEach(d => {
+      if (!stuOnDate(s, d)) return;
+      const att = DS().att[d + '_' + s.c];
+      if (att && att.recs[s.id]) {
+        t++;
+        if (att.recs[s.id] === 'H') h++;
+        if (att.recs[s.id] === 'A') a++;
+      }
+    });
+    if (t > 0) {
+      const p = h / t;
+      if (p < 0.85 || a >= 3) lowStudents.push({ ...s, p: p * 100, t, h, a });
+    }
+  });
+  lowStudents.sort((a, b) => a.p - b.p || b.a - a.a);
+
   $('#pg').innerHTML = `
-    <div class="card" style="margin-bottom:14px;padding:12px 16px">
-      <div class="ctl" style="margin-bottom:0">
-        <span style="font-weight:700">📅 Periode Data:</span>
-        <select id="dpSel" style="min-width:210px">
-          ${opts.map(o => `<option value="${o.val}" ${o.val === period ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
-        </select>
-        <span class="mu" style="font-size:12px">${ds[0]} s/d ${ds[ds.length - 1]} (${ds.length} hari aktif)</span>
+    <div class="card" style="margin-bottom:14px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <span style="font-weight:700;color:var(--pr)">📅 Periode Laporan:</span>
+      <select id="dpSel" style="flex:1;min-width:210px;font-weight:bold;border-color:var(--pr)">
+        ${opts.map(o => `<option value="${o.val}" ${o.val === period ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
+      </select>
+      <span class="pill" style="font-size:12px;background:var(--ln);border:none;color:var(--tx)">${ds[0]} s/d ${ds[ds.length - 1]} (${ds.length} hari aktif)</span>
+    </div>
+
+    <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:14px">
+      <div class="card kpi" style="border-top:4px solid var(--pr)"><b id="k1" style="color:var(--pr);font-size:2em">0</b><span style="font-weight:600">Total Siswa Aktif</span></div>
+      <div class="card kpi" style="border-top:4px solid var(--g)"><b id="k2" style="color:var(--g);font-size:2em">0</b><span style="font-weight:600">Kehadiran Terakhir</span><span style="font-size:11px;color:var(--mu)">(${lastDate})</span></div>
+      <div class="card kpi" style="border-top:4px solid var(--b)"><b id="k3" style="color:var(--b);font-size:2em">0</b><span style="font-weight:600">Rata-rata Hadir</span><span style="font-size:11px;color:var(--mu)">(${esc(periodLabel)})</span></div>
+      <div class="card kpi" style="border-top:4px solid var(--r);cursor:pointer;transition:transform 0.2s" id="k4card" title="Klik untuk lihat daftar siswa">
+        <b id="k4" style="color:var(--r);font-size:2em">0</b>
+        <span style="font-weight:600">Perlu Perhatian Khusus</span>
+        <span style="font-size:11px;color:var(--mu);text-decoration:underline">${lowStudents.length ? 'Klik untuk lihat daftar ▾' : 'Kehadiran < 85%'}</span>
       </div>
     </div>
-    <div class="kpis">
-      <div class="card kpi"><b id="k1">0</b><span>Total siswa</span></div>
-      <div class="card kpi"><b id="k2">0</b><span>Kehadiran terakhir (${lastDate})</span></div>
-      <div class="card kpi"><b id="k3">0</b><span>Rata-rata (${esc(periodLabel)})</span></div>
-      <div class="card kpi"><b id="k4" class="bad">0</b><span>Siswa perlu perhatian (&lt;85%)</span></div>
+
+    ${lowStudents.length > 0 ? `
+    <div class="card sc" id="alertBox" style="margin-bottom:14px;border:1px solid var(--r);background:color-mix(in srgb, var(--r) 4%, transparent);display:none">
+      <h3 style="margin:0 0 10px 0;color:var(--r);display:flex;align-items:center;gap:8px">
+        <span>⚠️</span> Daftar Siswa Perlu Perhatian Segera
+      </h3>
+      <table style="background:transparent;border:none">
+        <tr style="background:color-mix(in srgb, var(--r) 10%, transparent)"><th style="border:none">Nama Siswa</th><th style="border:none">Kelas</th><th style="border:none">% Hadir</th><th style="border:none">Alpa</th><th style="border:none">Aksi Lanjutan</th></tr>
+        ${lowStudents.slice(0, 10).map(s => `
+          <tr style="border-bottom:1px dashed color-mix(in srgb, var(--r) 20%, transparent)">
+            <td style="border:none"><b>${esc(s.n)}</b></td>
+            <td style="border:none">${esc(s.c)}</td>
+            <td style="border:none"><b class="bad">${s.p.toFixed(1)}%</b></td>
+            <td style="border:none"><b style="color:var(--r)">${s.a}x</b></td>
+            <td style="border:none"><button class="btn o" style="padding:4px 8px;font-size:11px;border-color:var(--r);color:var(--r)" onclick="page='lap';render()">Lihat Laporan Lengkap</button></td>
+          </tr>
+        `).join('')}
+        ${lowStudents.length > 10 ? `<tr><td colspan="5" style="border:none;text-align:center;font-size:12px;color:var(--mu)">...dan ${lowStudents.length - 10} siswa lainnya. Buka menu Laporan untuk detail lengkap.</td></tr>` : ''}
+      </table>
     </div>
+    ` : ''}
+
     <div class="card">
       <div class="ctl">
         <h3 style="margin:0">🏆 Peringkat Kehadiran Kelas</h3>
@@ -140,7 +185,6 @@ function dash() {
       <div class="card"><h3>Tren kehadiran harian (%)</h3><svg id="ln" viewBox="0 0 600 200" width="100%"></svg></div>
       <div class="card"><h3>Komposisi status</h3><svg viewBox="0 0 100 100" width="100%" style="max-height:190px"><g transform="rotate(-90 50 50)" id="dn"></g><text x="50" y="54" text-anchor="middle" font-size="14" font-weight="800" fill="currentColor" id="dt">0%</text></svg><div class="leg">${Object.entries(ST).map(([k, v]) => `<span><i style="background:${v[1]}"></i>${v[0]} ${all[k]}</span>`).join('')}</div></div>
     </div>`;
-
 
   if ($('#k4card') && $('#alertBox')) {
     $('#k4card').onclick = () => {

@@ -7,7 +7,7 @@
 function lap() {
   const cls = vis(), ds = dates();
   const rows = cls.map(c => ({ c, ...stat([c], ds), n: S.students.filter(s => s.c === c && isActiveStu(s)).length }));
-  
+
   // Analisis siswa individu untuk fitur "Perlu Perhatian"
   const stuStats = [];
   const stuMap = {};
@@ -61,9 +61,9 @@ function lap() {
             <td>${r.A}</td>
             <td>
               <div style="display:flex;align-items:center;gap:6px">
-                <span style="width:36px;text-align:right" class="${r.p < 90 ? 'bad' : ''}"><b>${r.p.toFixed(1)}%</b></span>
-                <div style="flex:1;height:6px;background:var(--ln);border-radius:3px;overflow:hidden">
-                  <div style="width:${r.p}%;height:100%;background:${r.p >= 90 ? 'var(--g)' : (r.p >= 80 ? 'var(--y)' : 'var(--r)')}"></div>
+                <span style="width:42px;text-align:right" class="${r.p < 90 ? 'bad' : ''}"><b>${r.p.toFixed(1)}%</b></span>
+                <div style="flex:1;min-width:60px;height:6px;background:var(--ln);border-radius:3px;overflow:hidden">
+                  <div style="width:${Math.min(100, r.p)}%;height:100%;background:${r.p >= 90 ? 'var(--g)' : (r.p >= 80 ? 'var(--y)' : 'var(--r)')}"></div>
                 </div>
               </div>
             </td>
@@ -71,7 +71,7 @@ function lap() {
         </table>
       </div>
     </div>
-    
+
     <div class="card sc" style="border-left:4px solid var(--r)">
       <div class="ctl">
         <h3 style="margin:0;color:var(--r)">⚠️ Siswa Perlu Perhatian Khusus</h3>
@@ -96,9 +96,9 @@ function lap() {
               H:${st.H} | S:${st.S} | I:${st.I} | <b style="color:var(--r)">A:${st.A}</b>
             </td>
             <td>
-              ${st.A >= 3 
-                ? '<span class="pill" style="color:var(--w);background:var(--r);border:none;font-weight:bold">📞 Hubungi Ortu / SP</span>' 
-                : '<span class="pill" style="color:var(--w);background:var(--y);border:none;font-weight:bold">👀 Pantau Ketat</span>'}
+              ${st.A >= 3
+                ? '<span class="pill" style="color:#fff;background:var(--r);border:none;font-weight:bold">📞 Hubungi Ortu / SP</span>'
+                : '<span class="pill" style="color:#fff;background:var(--y);border:none;font-weight:bold">👀 Pantau Ketat</span>'}
             </td>
           </tr>
         `).join('') || `<tr><td colspan="6" class="mu" style="text-align:center;padding:20px">🎉 Luar biasa! Semua siswa disiplin dengan kehadiran di atas 85% dan tanpa rekam jejak Alpa berlebih.</td></tr>`}
@@ -107,9 +107,7 @@ function lap() {
 
   $('#xl').onclick = exportXl;
   $('#cv').onclick = async () => {
-    const csv = 'Kelas,Siswa,Hadir,Sakit,Izin,Alpa,Persen
-' + rows.map(r => [r.c, r.n, r.H, r.S, r.I, r.A, r.p.toFixed(1)].join(',')).join('
-');
+    const csv = 'Kelas,Siswa,Hadir,Sakit,Izin,Alpa,Persen\n' + rows.map(r => [r.c, r.n, r.H, r.S, r.I, r.A, r.p.toFixed(1)].join(',')).join('\n');
     const ok = await dl('rekap-absensi-' + TODAY + '.csv', csv, 'text/csv;charset=utf-8');
     if (!ok) toast('Unduhan tidak tersedia di tampilan ini');
   };
