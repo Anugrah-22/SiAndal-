@@ -82,39 +82,42 @@ function dash() {
   const lastDate = activeDates.length ? activeDates[activeDates.length - 1] : ds[ds.length - 1];
   const last = stat(cls, [lastDate]);
 
+  const isPublicGuest = (DS() === G && G) || (user && user.r === 'tamu');
   const refEnd = ds[ds.length - 1] || TODAY;
   const ns = DS().students.filter(s => cls.includes(s.c) && isActiveStu(s, refEnd));
-  const low = (DS() === G && G && period === '30d')
-    ? G.low
-    : ns.filter(s => {
-        let h = 0, t = 0;
-        ds.forEach(d => {
-          if (!stuOnDate(s, d)) return;
-          const a = DS().att[d + '_' + s.c];
-          if (a && a.recs[s.id]) { t++; if (a.recs[s.id] === 'H') h++; }
-        });
-        return t && h / t < .85;
-      }).length;
 
-  // Mengambil data spesifik siswa perlu perhatian
+  // Mengambil data spesifik siswa perlu perhatian (untuk staf terautentikasi)
   const lowStudents = [];
-  ns.forEach(s => {
-    let h = 0, t = 0, a = 0;
-    ds.forEach(d => {
-      if (!stuOnDate(s, d)) return;
-      const att = DS().att[d + '_' + s.c];
-      if (att && att.recs[s.id]) {
-        t++;
-        if (att.recs[s.id] === 'H') h++;
-        if (att.recs[s.id] === 'A') a++;
+  if (!isPublicGuest) {
+    ns.forEach(s => {
+      let h = 0, t = 0, a = 0;
+      ds.forEach(d => {
+        if (!stuOnDate(s, d)) return;
+        const att = DS().att[d + '_' + s.c];
+        if (att && att.recs[s.id]) {
+          t++;
+          if (att.recs[s.id] === 'H') h++;
+          if (att.recs[s.id] === 'A') a++;
+        }
+      });
+      if (t > 0) {
+        const p = h / t;
+        if (p < 0.85 || a >= 3) lowStudents.push({ ...s, p: p * 100, t, h, a });
       }
     });
-    if (t > 0) {
-      const p = h / t;
-      if (p < 0.85 || a >= 3) lowStudents.push({ ...s, p: p * 100, t, h, a });
-    }
-  });
-  lowStudents.sort((a, b) => a.p - b.p || b.a - a.a);
+    lowStudents.sort((a, b) => a.p - b.p || b.a - a.a);
+  }
+
+  const low = isPublicGuest
+    ? (period === '30d' && G ? G.low : ns.filter(s => {
+        let h = 0, t = 0;
+        ds.forEach(d => {
+          const att = DS().att[d + '_' + s.c];
+          if (att && att.recs[s.id]) { t++; if (att.recs[s.id] === 'H') h++; }
+        });
+        return t && h / t < 0.85;
+      }).length)
+    : lowStudents.length;
 
   $('#pg').innerHTML = `
     <div class="card" style="margin-bottom:14px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
@@ -129,30 +132,29 @@ function dash() {
       <div class="card kpi" style="border-top:4px solid var(--pr)"><b id="k1" style="color:var(--pr);font-size:2em">0</b><span style="font-weight:600">Total Siswa Aktif</span></div>
       <div class="card kpi" style="border-top:4px solid var(--g)"><b id="k2" style="color:var(--g);font-size:2em">0</b><span style="font-weight:600">Kehadiran Terakhir</span><span style="font-size:11px;color:var(--mu)">(${lastDate})</span></div>
       <div class="card kpi" style="border-top:4px solid var(--b)"><b id="k3" style="color:var(--b);font-size:2em">0</b><span style="font-weight:600">Rata-rata Hadir</span><span style="font-size:11px;color:var(--mu)">(${esc(periodLabel)})</span></div>
-      <div class="card kpi" style="border-top:4px solid var(--r);cursor:pointer;transition:transform 0.2s" id="k4card" title="Klik untuk lihat daftar siswa">
+      <div class="card kpi" style="border-top:4px solid var(--r);${!isPublicGuest && lowStudents.length ? 'cursor:pointer;transition:transform 0.2s' : ''}" id="k4card" title="${isPublicGuest ? 'Masuk sebagai staf untuk melihat detail siswa' : 'Klik untuk lihat daftar siswa'}">
         <b id="k4" style="color:var(--r);font-size:2em">0</b>
         <span style="font-weight:600">Perlu Perhatian Khusus</span>
-        <span style="font-size:11px;color:var(--mu);text-decoration:underline">${lowStudents.length ? 'Klik untuk lihat daftar ▾' : 'Kehadiran < 85%'}</span>
+        <span style="font-size:11px;color:var(--mu);${!isPublicGuest && lowStudents.length ? 'text-decoration:underline' : ''}">${isPublicGuest ? 'Kehadiran < 85% (Masuk staf untuk detail)' : (lowStudents.length ? 'Klik untuk lihat daftar ▾' : 'Kehadiran < 85% atau Alpa ≥ 3')}</span>
       </div>
     </div>
 
-    ${lowStudents.length > 0 ? `
+    ${!isPublicGuest && lowStudents.length > 0 ? `
     <div class="card sc" id="alertBox" style="margin-bottom:14px;border:1px solid var(--r);background:color-mix(in srgb, var(--r) 4%, transparent);display:none">
       <h3 style="margin:0 0 10px 0;color:var(--r);display:flex;align-items:center;gap:8px">
         <span>⚠️</span> Daftar Siswa Perlu Perhatian Segera
       </h3>
       <table style="background:transparent;border:none">
-        <tr style="background:color-mix(in srgb, var(--r) 10%, transparent)"><th style="border:none">Nama Siswa</th><th style="border:none">Kelas</th><th style="border:none">% Hadir</th><th style="border:none">Alpa</th><th style="border:none">Aksi Lanjutan</th></tr>
+        <tr style="background:color-mix(in srgb, var(--r) 10%, transparent)"><th style="border:none">Nama Siswa</th><th style="border:none">Kelas</th><th style="border:none">% Hadir</th><th style="border:none">Alpa</th></tr>
         ${lowStudents.slice(0, 10).map(s => `
           <tr style="border-bottom:1px dashed color-mix(in srgb, var(--r) 20%, transparent)">
             <td style="border:none"><b>${esc(s.n)}</b></td>
             <td style="border:none">${esc(s.c)}</td>
             <td style="border:none"><b class="bad">${s.p.toFixed(1)}%</b></td>
             <td style="border:none"><b style="color:var(--r)">${s.a}x</b></td>
-            <td style="border:none"><button class="btn o" style="padding:4px 8px;font-size:11px;border-color:var(--r);color:var(--r)" onclick="page='lap';render()">Lihat Laporan Lengkap</button></td>
           </tr>
         `).join('')}
-        ${lowStudents.length > 10 ? `<tr><td colspan="5" style="border:none;text-align:center;font-size:12px;color:var(--mu)">...dan ${lowStudents.length - 10} siswa lainnya. Buka menu Laporan untuk detail lengkap.</td></tr>` : ''}
+        ${lowStudents.length > 10 ? `<tr><td colspan="4" style="border:none;text-align:center;font-size:12px;color:var(--mu)">...dan ${lowStudents.length - 10} siswa lainnya. Buka menu Laporan untuk detail lengkap.</td></tr>` : ''}
       </table>
     </div>
     ` : ''}

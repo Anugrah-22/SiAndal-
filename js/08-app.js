@@ -13,7 +13,14 @@ function boot() {
   start();
 }
 
-$('#ver').textContent = 'SiAndal v' + VER;
+$('#ver').textContent = 'SiAndal v' + VER + ' ⓘ';
+$('#ver').style.cursor = 'pointer';
+$('#ver').title = 'Klik untuk melihat catatan pembaruan';
+$('#ver').onclick = () => {
+  if (user && (user.r === 'guru' || user.r === 'kepsek')) { page = 'info'; render(); }
+  else if (user && user.r === 'admin') { page = 'mt'; render(); }
+  else { alert('SiAndal v' + VER + '\n\n' + CHANGELOG.slice(0, 4).map(c => '• v' + c[0] + ' (' + c[1] + '): ' + c[2]).join('\n')); }
+};
 $('#mti').src = document.querySelector('.hero img').src;
 $('#mtr').onclick = () => location.reload();
 $('#mtl').onclick = () => showLogin();

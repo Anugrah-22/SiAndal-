@@ -161,15 +161,7 @@ function maint() {
       toast(r.waiting || r.installing ? 'Versi baru ditemukan' : 'Anda sudah memakai versi terbaru');
     } catch (e) { toast('Tidak dapat memeriksa pembaruan'); }
   };
-  $('#ux').onclick = async () => {
-    try {
-      if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
-      const g = navigator.serviceWorker && await navigator.serviceWorker.getRegistrations();
-      if (g) for (const r of g) await r.unregister();
-    } catch (e) {}
-    toast('Cache dibersihkan, memuat ulang…');
-    setTimeout(() => location.reload(), 700);
-  };
+  $('#ux').onclick = safeClearCache;
 }
 
 function sync() {
@@ -477,4 +469,68 @@ function restore(f) {
     } catch (e) { toast('File backup tidak valid'); }
   };
   r.readAsText(f);
+}
+
+function infoPage() {
+  const el = $('#pg');
+  el.innerHTML = `
+    <div class="grid2" style="grid-template-columns:1fr 1fr">
+      <div class="card">
+        <h3>📦 Versi &amp; Pembaruan Aplikasi</h3>
+        <p style="margin:0 0 10px">Versi terpasang: <b>v${VER}</b><br>Status koneksi: <b>${navigator.onLine ? 'Online' : 'Offline'}</b><br>Antrean sinkron: <b>${S.outbox.length}</b></p>
+        <div class="ctl">
+          <button class="btn" id="uc2">🔄 Cek pembaruan</button>
+          <button class="btn o" id="sn2">⟳ Sinkron data</button>
+          <button class="btn o" id="ux2">🧹 Bersihkan cache</button>
+        </div>
+        <div class="cap">Gunakan <b>Cek pembaruan</b> untuk memeriksa versi aplikasi terbaru, atau <b>Bersihkan cache</b> bila tampilan terasa belum berubah. Data absensi lokal tidak terhapus.</div>
+      </div>
+      <div class="card">
+        <h3>ℹ️ Informasi Sistem</h3>
+        <p style="margin:0 0 8px"><b>SiAndal</b> – Sistem Informasi Absensi Digital<br>SMA-IT Andalan International Boarding School</p>
+        <p style="color:var(--mu);font-size:12px;margin:0">Data absensi tersinkron otomatis ke server sekolah setiap kali perangkat terhubung ke internet, dan tetap dapat diisi saat offline.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>📝 Catatan Perubahan (Log Update)</h3>
+      ${CHANGELOG.map(c => `<p style="margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--ln)"><b>v${c[0]}</b> <span class="mu">${c[1]}</span><br>${c[2]}</p>`).join('')}
+    </div>`;
+
+  $('#uc2').onclick = async () => {
+    try {
+      const r = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+      if (!r) return toast('Pembaruan otomatis hanya aktif pada versi terpasang (PWA)');
+      await r.update();
+      toast(r.waiting || r.installing ? 'Versi baru ditemukan — klik banner di bawah' : 'Anda sudah memakai versi terbaru (v' + VER + ')');
+    } catch (e) { toast('Tidak dapat memeriksa pembaruan'); }
+  };
+  $('#sn2').onclick = async () => {
+    if (REM && navigator.onLine) {
+      await pushR();
+      toast('Sinkronisasi selesai');
+      infoPage();
+    } else {
+      toast('Perangkat sedang offline atau mode lokal');
+    }
+  };
+  $('#ux2').onclick = safeClearCache;
+}
+
+async function safeClearCache() {
+  if (!navigator.onLine) {
+    toast('⚠️ Perangkat sedang offline. Hubungkan ke internet terlebih dahulu sebelum membersihkan cache agar aplikasi tetap bisa dimuat ulang.');
+    return;
+  }
+  const qLen = S ? ((S.outbox || []).length + (S.datt || []).length + (S.uout || []).length) : 0;
+  const msg = qLen
+    ? `Masih ada ${qLen} antrean data yang belum tersinkron. Bersihkan cache dan muat ulang aplikasi sekarang? (Data lokal tidak akan terhapus)`
+    : 'Bersihkan cache browser dan muat ulang aplikasi ke versi terbaru? (Data absensi tidak akan terhapus)';
+  if (!await ask(msg)) return;
+  try {
+    if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+    const g = navigator.serviceWorker && await navigator.serviceWorker.getRegistrations();
+    if (g) for (const r of g) await r.unregister();
+  } catch (e) {}
+  toast('Cache dibersihkan, memuat ulang…');
+  setTimeout(() => location.reload(), 700);
 }

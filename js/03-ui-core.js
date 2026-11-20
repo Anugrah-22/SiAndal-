@@ -142,6 +142,6 @@ function render() {
   document.querySelectorAll('#nav .nav').forEach(b => b.classList.toggle('on', b.dataset.p === page));
   $('#ttl').textContent = NAV[user.r].find(n => n[0] === page)[2];
   $('#pg').innerHTML = '';
-  ({ dash, absen, siswa, lap, sync, user: users, kelas, mt: maint })[page]();
+  ({ dash, absen, siswa, lap, sync, user: users, kelas, mt: maint, info: infoPage })[page]();
   netUI();
 }

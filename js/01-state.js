@@ -15,8 +15,11 @@ const ST = {
   A: ['Alpa', 'var(--r)']
 };
 
-const VER = '1.7.4-gas';
+const VER = '1.7.7-gas';
 const CHANGELOG = [
+  ['1.7.7-gas', '20 Nov 2026', 'Perbaikan kartu Perlu Perhatian Khusus pada Dashboard agar jumlah dan daftar selalu sinkron, mengunci detail daftar siswa khusus untuk akun staf (mode publik hanya menampilkan angka agregat), serta menghapus kolom Aksi Lanjutan yang tidak diperlukan.'],
+  ['1.7.6-gas', '19 Nov 2026', 'Menambahkan proteksi koneksi online dan dialog konfirmasi pada tombol Bersihkan Cache agar pengguna tidak tidak sengaja menghapus cache saat perangkat sedang offline.'],
+  ['1.7.5-gas', '19 Nov 2026', 'Menambahkan menu Info & Pembaruan (Catatan Perubahan, Cek Versi, dan Bersihkan Cache) untuk akun Guru dan Kepala Sekolah, serta membuat nomor versi di sidebar bisa diklik.'],
   ['1.7.4-gas', '19 Nov 2026', 'Sinkronisasi penuh metadata penginput absensi (60 hari terakhir selalu diperbarui tanpa tertahan kursor lokal) serta pembersihan kursor saat login/logout.'],
   ['1.7.3-gas', '19 Nov 2026', 'Perbaikan pembaruan nama guru penginput/pengubah absensi dan jam simpan agar selalu tampil real-time meski tidak ada perubahan status siswa.'],
   ['1.7.2-gas', '19 Nov 2026', 'Tambah tombol Batal Edit pada halaman Input Absensi untuk mengembalikan pilihan ke data tersimpan tanpa menghapus absensi, serta perjelas label tombol Hapus Data Absensi.'],
@@ -48,12 +51,14 @@ const NAV = {
   kepsek: [
     ['dash', '📊', 'Dashboard'],
     ['siswa', '🎓', 'Data Siswa'],
-    ['lap', '📄', 'Laporan']
+    ['lap', '📄', 'Laporan'],
+    ['info', 'ℹ️', 'Info & Pembaruan']
   ],
   guru: [
     ['dash', '📊', 'Dashboard'],
     ['absen', '✅', 'Input Absensi'],
-    ['lap', '📄', 'Laporan']
+    ['lap', '📄', 'Laporan'],
+    ['info', 'ℹ️', 'Info & Pembaruan']
   ]
 };
 
