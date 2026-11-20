@@ -15,8 +15,10 @@ const ST = {
   A: ['Alpa', 'var(--r)']
 };
 
-const VER = '1.7.7-gas';
+const VER = '1.7.9-gas';
 const CHANGELOG = [
+  ['1.7.9-gas', '20 Nov 2026', 'Normalisasi kunci ID siswa pada perhitungan agregat publik (04_PublicDashboard.gs) agar angka Perlu Perhatian Khusus saat tampilan umum selalu cocok 100% dengan akun staf.'],
+  ['1.7.8-gas', '20 Nov 2026', 'Menyamakan jendela perhitungan 30 hari kerja pada endpoint publik (04_PublicDashboard.gs) dengan Dashboard staf agar angka Perlu Perhatian Khusus saat sebelum dan sesudah login identik 100%.'],
   ['1.7.7-gas', '20 Nov 2026', 'Perbaikan kartu Perlu Perhatian Khusus pada Dashboard agar jumlah dan daftar selalu sinkron, mengunci detail daftar siswa khusus untuk akun staf (mode publik hanya menampilkan angka agregat), serta menghapus kolom Aksi Lanjutan yang tidak diperlukan.'],
   ['1.7.6-gas', '19 Nov 2026', 'Menambahkan proteksi koneksi online dan dialog konfirmasi pada tombol Bersihkan Cache agar pengguna tidak tidak sengaja menghapus cache saat perangkat sedang offline.'],
   ['1.7.5-gas', '19 Nov 2026', 'Menambahkan menu Info & Pembaruan (Catatan Perubahan, Cek Versi, dan Bersihkan Cache) untuk akun Guru dan Kepala Sekolah, serta membuat nomor versi di sidebar bisa diklik.'],

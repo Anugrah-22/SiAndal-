@@ -84,7 +84,7 @@ async function pubR() {
     save();
     applyMt();
   }
-  if (ch && page === 'dash' && user && user.r === 'tamu') render();
+  if (ch && page === 'dash' && (!user || user.r === 'tamu')) render();
 }
 
 async function maintR() {
